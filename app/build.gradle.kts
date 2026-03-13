@@ -44,4 +44,12 @@ dependencies {
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
+    // Retrofit 核心库（它会自动引入其依赖的 OkHttp 和 Okio 库）
+    implementation("com.squareup.retrofit2:retrofit:3.0.0")
+    // Retrofit 的 GSON 转换器，用于 JSON 数据的序列化和反序列化
+    implementation("com.squareup.retrofit2:converter-gson:3.0.0")
+    //实现协程相关依赖
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
+
 }
