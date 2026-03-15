@@ -1,3 +1,3 @@
 package com.example.seteasecloudmusic.data.model
 
-data class SongDao()
+data class SearchResultDao()
