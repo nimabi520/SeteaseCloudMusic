@@ -2,18 +2,27 @@ package com.example.seteasecloudmusic.data.model
 
 import com.google.gson.annotations.SerializedName
 
+/**
+ * cloudsearch/search 接口的顶层响应。
+ */
 data class SearchResultDao(
 	val result: SearchResultBodyDao? = null,
 	val code: Int = 0,
 	val trp: SearchTrackPathDao? = null
 )
 
+/**
+ * 搜索结果主体，包含歌曲列表与总数。
+ */
 data class SearchResultBodyDao(
 	val songs: List<SearchSongItemDao> = emptyList(),
 	val songCount: Int = 0,
 	val hasMore: Boolean? = null
 )
 
+/**
+ * 单首歌曲的搜索结果条目。
+ */
 data class SearchSongItemDao(
 	val no: Int = 0,
 	val rt: String? = null,
@@ -56,6 +65,9 @@ data class SearchSongItemDao(
 	val mark: Long? = null
 )
 
+/**
+ * 歌曲权限信息（可播、可下、码率等级等）。
+ */
 data class SongPrivilegeDao(
 	val flag: Long? = null,
 	val code: Int? = null,
@@ -86,11 +98,17 @@ data class SongPrivilegeDao(
 	val pl: Long? = null
 )
 
+/**
+ * 权益计费信息条目。
+ */
 data class ChargeInfoDao(
 	val rate: Long? = null,
 	val chargeType: Int? = null
 )
 
+/**
+ * 免费试听权限信息。
+ */
 data class FreeTrialPrivilegeDao(
 	val userConsumable: Boolean? = null,
 	val resConsumable: Boolean? = null,
@@ -98,6 +116,9 @@ data class FreeTrialPrivilegeDao(
 	val listenType: Int? = null
 )
 
+/**
+ * 音质信息（码率、采样率、文件大小等）。
+ */
 data class SongQualityDao(
 	val br: Long? = null,
 	val fid: Long? = null,
@@ -106,6 +127,9 @@ data class SongQualityDao(
 	val sr: Int? = null
 )
 
+/**
+ * 专辑信息。
+ */
 data class SearchAlbumDao(
 	val picUrl: String? = null,
 	val name: String? = null,
@@ -116,6 +140,9 @@ data class SearchAlbumDao(
 	val pic: Long? = null
 )
 
+/**
+ * 歌手信息。
+ */
 data class SearchArtistDao(
 	val name: String? = null,
 	val tns: List<String> = emptyList(),
@@ -124,6 +151,9 @@ data class SearchArtistDao(
 	val alia: List<String> = emptyList()
 )
 
+/**
+ * 改编/关联原曲信息。
+ */
 data class OriginSongSimpleDataDao(
 	val artists: List<OriginSongArtistDao> = emptyList(),
 	val name: String? = null,
@@ -131,16 +161,25 @@ data class OriginSongSimpleDataDao(
 	val albumMeta: OriginSongAlbumMetaDao? = null
 )
 
+/**
+ * 原曲歌手信息。
+ */
 data class OriginSongArtistDao(
 	val name: String? = null,
 	val id: Long? = null
 )
 
+/**
+ * 原曲专辑信息。
+ */
 data class OriginSongAlbumMetaDao(
 	val name: String? = null,
 	val id: Long? = null
 )
 
+/**
+ * 搜索链路规则信息（实验/策略字段）。
+ */
 data class SearchTrackPathDao(
 	val rules: List<String> = emptyList()
 )
