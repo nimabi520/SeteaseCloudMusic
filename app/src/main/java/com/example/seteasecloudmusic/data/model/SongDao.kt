@@ -2,11 +2,17 @@ package com.example.seteasecloudmusic.data.model
 
 import com.google.gson.JsonElement
 
+/**
+ * /song/url/v1 接口顶层响应。
+ */
 data class SongDao(
 	val data: List<SongUrlItemDao> = emptyList(),
 	val code: Int = 0
 )
 
+/**
+ * 单首歌曲播放地址及其元信息。
+ */
 data class SongUrlItemDao(
 	val id: Long = 0L,
 	val url: String? = null,
@@ -46,6 +52,9 @@ data class SongUrlItemDao(
 	val beatType: Int? = null
 )
 
+/**
+ * 免费试听权限信息。
+ */
 data class SongFreeTrialPrivilegeDao(
 	val resConsumable: Boolean? = null,
 	val userConsumable: Boolean? = null,
@@ -55,6 +64,9 @@ data class SongFreeTrialPrivilegeDao(
 	val freeLimitTagType: String? = null
 )
 
+/**
+ * 限时试听权限信息。
+ */
 data class SongFreeTimeTrialPrivilegeDao(
 	val resConsumable: Boolean? = null,
 	val userConsumable: Boolean? = null,
