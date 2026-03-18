@@ -1,10 +1,11 @@
 package com.example.seteasecloudmusic.data.api.auth
 
 import retrofit2.http.POST
-import retrofit2.http.GET
 import retrofit2.http.Query
 import com.example.seteasecloudmusic.data.model.auth.LoginResponseDto
-import com.example.seteasecloudmusic.data.model.auth.QrKeyLoginDto
+import com.example.seteasecloudmusic.data.model.auth.QrKeyResponseDto
+import com.example.seteasecloudmusic.data.model.auth.QrCodeResponseDto
+import com.example.seteasecloudmusic.data.model.auth.QrStatusResponseDto
 import java.sql.Timestamp
 
 /**
@@ -20,20 +21,20 @@ interface AuthService {
     @POST("/login/qr/key")
     suspend fun getQrKey (
         @Query("timestamp")timestamp: Timestamp
-    ): QrKeyLoginDto
+    ): QrKeyResponseDto
 
     @POST("/login/qr/create")
     suspend fun getQrCode(
         @Query("key")key: String,
         @Query("timestamp")timestamp: Timestamp,
         @Query("qrimg")qrimg: Int
-    ): QrKeyLoginDto
+    ): QrCodeResponseDto
 
     @POST("/login/qr/check")
     suspend fun checkQrCodeStatus(
         @Query("key")key: String,
         @Query("timestamp")timestamp: Timestamp
-    ): QrKeyLoginDto
+    ): QrStatusResponseDto
 
 
 }
