@@ -1,4 +1,4 @@
-package com.example.seteasecloudmusic.present
+package com.example.seteasecloudmusic.presentation
 
 import android.os.Bundle
 import androidx.activity.enableEdgeToEdge
