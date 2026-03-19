@@ -1,6 +1,6 @@
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.compose.compiler) apply false
+    alias(libs.plugins.compose.compiler)
 }
 
 android {
@@ -34,6 +34,14 @@ android {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
+    
+    buildFeatures {
+        compose = true
+    }
+    
+    composeOptions {
+        kotlinCompilerExtensionVersion = "2.1.0"
+    }
 }
 
 dependencies {
@@ -45,14 +53,59 @@ dependencies {
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
+    
     // Retrofit 核心库（它会自动引入其依赖的 OkHttp 和 Okio 库）
     implementation("com.squareup.retrofit2:retrofit:3.0.0")
     // Retrofit 的 GSON 转换器，用于 JSON 数据的序列化和反序列化
     implementation("com.squareup.retrofit2:converter-gson:3.0.0")
-    //实现协程相关依赖
+    
+    // 实现协程相关依赖
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
-    //liquid glass实现相关库
+    
+    // Liquid glass 实现相关库
     implementation("io.github.kyant0:backdrop:1.0.6")
+
+    // Compose BOM
+    val composeBom = platform("androidx.compose:compose-bom:2026.02.01")
+    implementation(composeBom)
+    androidTestImplementation(composeBom)
+
+    // Compose 核心依赖
+    implementation("androidx.compose.runtime:runtime")
+    implementation("androidx.compose.foundation:foundation")
+    implementation("androidx.compose.material3:material3")
+    implementation("androidx.compose.material:material-icons-core")
+    implementation("androidx.compose.material:material-icons-extended")
+    implementation("androidx.compose.ui:ui")
+    
+    // Compose Activity
+    implementation("androidx.activity:activity-compose:1.9.0")
+    
+    // Navigation - 这是缺失的关键依赖
+    implementation("androidx.navigation:navigation-compose:2.7.7")
+    
+    // Lifecycle
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.7.0")
+
+    // Android Studio Preview support
+    implementation("androidx.compose.ui:ui-tooling-preview")
+    debugImplementation("androidx.compose.ui:ui-tooling")
+
+    // UI Tests
+    androidTestImplementation("androidx.compose.ui:ui-test-junit4")
+    debugImplementation("androidx.compose.ui:ui-test-manifest")
+
+    // Optional - Add window size utils
+    implementation("androidx.compose.material3.adaptive:adaptive")
+
+    // Optional - Integration with activities
+    implementation("androidx.activity:activity-compose:1.12.4")
+    // Optional - Integration with ViewModels
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.10.0")
+    // Optional - Integration with LiveData
+    implementation("androidx.compose.runtime:runtime-livedata")
+    // Optional - Integration with RxJava
+    implementation("androidx.compose.runtime:runtime-rxjava2")
 
 }
