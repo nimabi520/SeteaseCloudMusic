@@ -21,5 +21,5 @@ import com.kyant.shapes.RoundedRectangle
 
 @Composable
 fun AppleMusicStyleScreen() {
-
+    
 }
