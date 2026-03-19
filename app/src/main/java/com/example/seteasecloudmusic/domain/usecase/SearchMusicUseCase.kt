@@ -13,8 +13,12 @@ import com.example.seteasecloudmusic.domain.repository.MusicRepository
 class SearchMusicUseCase(
     private val musicRepository: MusicRepository
 ) {
-    suspend operator fun invoke(query: String): Result<List<Track>> {
+    suspend operator fun invoke(
+        query: String,
+        limit: Int = 30,
+        offset: Int = 0
+    ): Result<List<Track>> {
         if (query.isBlank()) return Result.success(emptyList())
-        return musicRepository.searchTracks(query)
+        return musicRepository.searchTracks(query = query.trim(), limit = limit, offset = offset)
     }
 }
