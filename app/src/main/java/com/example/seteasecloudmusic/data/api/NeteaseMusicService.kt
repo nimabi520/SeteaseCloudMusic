@@ -1,7 +1,7 @@
 package com.example.seteasecloudmusic.data.api
 
-import com.example.seteasecloudmusic.data.model.SearchResultDao
-import com.example.seteasecloudmusic.data.model.SongDao
+import com.example.seteasecloudmusic.data.model.SearchResultResponse
+import com.example.seteasecloudmusic.data.model.SongResponse
 import retrofit2.http.GET
 import retrofit2.http.Query
 
@@ -16,7 +16,7 @@ interface NeteaseMusicService {
     suspend fun getSongUrl(
         @Query("id") id: Long,
         @Query("level") level: String = "hires"
-    ): SongDao
+    ): SongResponse
 
     /**
      * 使用 cloudsearch 获取更完整的搜索结果。
@@ -27,7 +27,7 @@ interface NeteaseMusicService {
         @Query("limit") limit: Int = 30,
         @Query("offset") offset: Int = 0,
         @Query("type") type: Int = SearchType.SONG.value
-    ): SearchResultDao
+    ): SearchResultResponse
 
     /**
      * 使用基础 search 接口获取搜索结果。
@@ -38,7 +38,7 @@ interface NeteaseMusicService {
         @Query("limit") limit: Int = 30,
         @Query("offset") offset: Int = 0,
         @Query("type") type: Int = SearchType.SONG.value
-    ): SearchResultDao
+    ): SearchResultResponse
 }
 
 /**

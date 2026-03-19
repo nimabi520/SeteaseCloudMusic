@@ -5,15 +5,15 @@ import com.google.gson.JsonElement
 /**
  * /song/url/v1 接口顶层响应。
  */
-data class SongDao(
-	val data: List<SongUrlItemDao> = emptyList(),
+data class SongResponse(
+	val data: List<SongUrlItemResponse> = emptyList(),
 	val code: Int = 0
 )
 
 /**
  * 单首歌曲播放地址及其元信息。
  */
-data class SongUrlItemDao(
+data class SongUrlItemResponse(
 	val id: Long = 0L,
 	val url: String? = null,
 	val br: Int? = null,
@@ -35,8 +35,8 @@ data class SongUrlItemDao(
 	val level: String? = null,
 	val encodeType: String? = null,
 	val channelLayout: JsonElement? = null,
-	val freeTrialPrivilege: SongFreeTrialPrivilegeDao? = null,
-	val freeTimeTrialPrivilege: SongFreeTimeTrialPrivilegeDao? = null,
+	val freeTrialPrivilege: SongFreeTrialPrivilegeResponse? = null,
+	val freeTimeTrialPrivilege: SongFreeTimeTrialPrivilegeResponse? = null,
 	val urlSource: Int? = null,
 	val rightSource: Int? = null,
 	val podcastCtrp: JsonElement? = null,
@@ -55,7 +55,7 @@ data class SongUrlItemDao(
 /**
  * 免费试听权限信息。
  */
-data class SongFreeTrialPrivilegeDao(
+data class SongFreeTrialPrivilegeResponse(
 	val resConsumable: Boolean? = null,
 	val userConsumable: Boolean? = null,
 	val listenType: Int? = null,
@@ -67,7 +67,7 @@ data class SongFreeTrialPrivilegeDao(
 /**
  * 限时试听权限信息。
  */
-data class SongFreeTimeTrialPrivilegeDao(
+data class SongFreeTimeTrialPrivilegeResponse(
 	val resConsumable: Boolean? = null,
 	val userConsumable: Boolean? = null,
 	val type: Int? = null,

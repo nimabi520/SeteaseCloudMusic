@@ -51,5 +51,7 @@ dependencies {
     //实现协程相关依赖
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
+    //liquid glass实现相关库
+    implementation("io.github.kyant0:backdrop:1.0.6")
 
 }

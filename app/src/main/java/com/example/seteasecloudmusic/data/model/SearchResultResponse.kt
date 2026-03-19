@@ -5,17 +5,17 @@ import com.google.gson.annotations.SerializedName
 /**
  * cloudsearch/search 接口的顶层响应。
  */
-data class SearchResultDao(
-	val result: SearchResultBodyDao? = null,
+data class SearchResultResponse(
+	val result: SearchResultBodyResponse? = null,
 	val code: Int = 0,
-	val trp: SearchTrackPathDao? = null
+	val trp: SearchTrackPathResponse? = null
 )
 
 /**
  * 搜索结果主体，包含歌曲列表与总数。
  */
-data class SearchResultBodyDao(
-	val songs: List<SearchSongItemDao> = emptyList(),
+data class SearchResultBodyResponse(
+	val songs: List<SearchSongItemResponse> = emptyList(),
 	val songCount: Int = 0,
 	val hasMore: Boolean? = null
 )
@@ -23,12 +23,12 @@ data class SearchResultBodyDao(
 /**
  * 单首歌曲的搜索结果条目。
  */
-data class SearchSongItemDao(
+data class SearchSongItemResponse(
 	val no: Int = 0,
 	val rt: String? = null,
 	val copyright: Int? = null,
 	val fee: Int? = null,
-	val privilege: SongPrivilegeDao? = null,
+	val privilege: SongPrivilegeResponse? = null,
 	val mst: Int? = null,
 	val pst: Int? = null,
 	val pop: Int? = null,
@@ -39,25 +39,25 @@ data class SearchSongItemDao(
 	val rtUrls: List<String> = emptyList(),
 	val resourceState: Boolean? = null,
 	val id: Long = 0L,
-	val sq: SongQualityDao? = null,
-	val hr: SongQualityDao? = null,
+	val sq: SongQualityResponse? = null,
+	val hr: SongQualityResponse? = null,
 	val st: Int? = null,
 	val cd: String? = null,
 	val publishTime: Long? = null,
 	val cf: String? = null,
 	val originCoverType: Int? = null,
-	val h: SongQualityDao? = null,
+	val h: SongQualityResponse? = null,
 	val mv: Long? = null,
-	val al: SearchAlbumDao? = null,
-	val originSongSimpleData: OriginSongSimpleDataDao? = null,
-	val l: SongQualityDao? = null,
-	val m: SongQualityDao? = null,
+	val al: SearchAlbumResponse? = null,
+	val originSongSimpleData: OriginSongSimpleDataResponse? = null,
+	val l: SongQualityResponse? = null,
+	val m: SongQualityResponse? = null,
 	val version: Int? = null,
 	val cp: Int? = null,
 	val alia: List<String> = emptyList(),
 	val djId: Long? = null,
 	val single: Int? = null,
-	val ar: List<SearchArtistDao> = emptyList(),
+	val ar: List<SearchArtistResponse> = emptyList(),
 	val ftype: Int? = null,
 	val t: Int? = null,
 	val v: Int? = null,
@@ -68,7 +68,7 @@ data class SearchSongItemDao(
 /**
  * 歌曲权限信息（可播、可下、码率等级等）。
  */
-data class SongPrivilegeDao(
+data class SongPrivilegeResponse(
 	val flag: Long? = null,
 	val code: Int? = null,
 	val dlLevel: String? = null,
@@ -84,8 +84,8 @@ data class SongPrivilegeDao(
 	val sp: Int? = null,
 	val payed: Int? = null,
 	val st: Int? = null,
-	val chargeInfoList: List<ChargeInfoDao> = emptyList(),
-	val freeTrialPrivilege: FreeTrialPrivilegeDao? = null,
+	val chargeInfoList: List<ChargeInfoResponse> = emptyList(),
+	val freeTrialPrivilege: FreeTrialPrivilegeResponse? = null,
 	val downloadMaxbr: Long? = null,
 	val downloadMaxBrLevel: String? = null,
 	val cp: Int? = null,
@@ -101,7 +101,7 @@ data class SongPrivilegeDao(
 /**
  * 权益计费信息条目。
  */
-data class ChargeInfoDao(
+data class ChargeInfoResponse(
 	val rate: Long? = null,
 	val chargeType: Int? = null
 )
@@ -109,7 +109,7 @@ data class ChargeInfoDao(
 /**
  * 免费试听权限信息。
  */
-data class FreeTrialPrivilegeDao(
+data class FreeTrialPrivilegeResponse(
 	val userConsumable: Boolean? = null,
 	val resConsumable: Boolean? = null,
 	val cannotListenReason: Int? = null,
@@ -119,7 +119,7 @@ data class FreeTrialPrivilegeDao(
 /**
  * 音质信息（码率、采样率、文件大小等）。
  */
-data class SongQualityDao(
+data class SongQualityResponse(
 	val br: Long? = null,
 	val fid: Long? = null,
 	val size: Long? = null,
@@ -130,7 +130,7 @@ data class SongQualityDao(
 /**
  * 专辑信息。
  */
-data class SearchAlbumDao(
+data class SearchAlbumResponse(
 	val picUrl: String? = null,
 	val name: String? = null,
 	val tns: List<String> = emptyList(),
@@ -143,7 +143,7 @@ data class SearchAlbumDao(
 /**
  * 歌手信息。
  */
-data class SearchArtistDao(
+data class SearchArtistResponse(
 	val name: String? = null,
 	val tns: List<String> = emptyList(),
 	val alias: List<String> = emptyList(),
@@ -154,17 +154,17 @@ data class SearchArtistDao(
 /**
  * 改编/关联原曲信息。
  */
-data class OriginSongSimpleDataDao(
-	val artists: List<OriginSongArtistDao> = emptyList(),
+data class OriginSongSimpleDataResponse(
+	val artists: List<OriginSongArtistResponse> = emptyList(),
 	val name: String? = null,
 	val songId: Long? = null,
-	val albumMeta: OriginSongAlbumMetaDao? = null
+	val albumMeta: OriginSongAlbumMetaResponse? = null
 )
 
 /**
  * 原曲歌手信息。
  */
-data class OriginSongArtistDao(
+data class OriginSongArtistResponse(
 	val name: String? = null,
 	val id: Long? = null
 )
@@ -172,7 +172,7 @@ data class OriginSongArtistDao(
 /**
  * 原曲专辑信息。
  */
-data class OriginSongAlbumMetaDao(
+data class OriginSongAlbumMetaResponse(
 	val name: String? = null,
 	val id: Long? = null
 )
@@ -180,6 +180,6 @@ data class OriginSongAlbumMetaDao(
 /**
  * 搜索链路规则信息（实验/策略字段）。
  */
-data class SearchTrackPathDao(
+data class SearchTrackPathResponse(
 	val rules: List<String> = emptyList()
 )
