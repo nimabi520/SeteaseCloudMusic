@@ -65,6 +65,7 @@ dependencies {
     
     // Liquid glass 实现相关库
     implementation("io.github.kyant0:backdrop:1.0.6")
+    implementation("io.github.kyant0:shapes:1.2.0")
 
     // Compose BOM
     val composeBom = platform("androidx.compose:compose-bom:2026.02.01")
