@@ -52,7 +52,11 @@ data class BottomNavItem(val title: String, val icon: ImageVector)
 @Composable
 fun AppNavigation() {
     // 1. 【准备胶片】：创建一个 layerBackdrop 状态来保存底层渲染的实时画面
-    val backdrop = rememberLayerBackdrop()
+    val backgroundColor = Color.White
+    val backdrop = rememberLayerBackdrop{
+        drawRect(backgroundColor)
+                drawContent()
+    }
     // 记录当前选中的导航项索引
     var selectedIndex by remember { mutableIntStateOf(0) }
 
@@ -60,8 +64,8 @@ fun AppNavigation() {
     val navItems = listOf(
         BottomNavItem("主页", Icons.Filled.Home),
         BottomNavItem("电台", Icons.Filled.Radio),
-        BottomNavItem("我的", Icons.Filled.Person),
-        BottomNavItem("搜索", Icons.Filled.Search)
+        BottomNavItem("搜索", Icons.Filled.Search),
+        BottomNavItem("我的", Icons.Filled.Person)
     )
 
     // 2. 【舞台】：整个屏幕的根容器，使用 Box 以支持 Z 轴方向的层叠排列
@@ -87,19 +91,16 @@ fun AppNavigation() {
                 .windowInsetsPadding(WindowInsets.navigationBars)
                 // 2. 【关键修正】手动添加上下左右的间距，这才是让它"悬浮"起来的核心！
                 // 单靠 safeContentPadding 只是避开遮挡，不会产生设计上的悬浮感
-                .padding(horizontal = 16.dp, vertical = 8.dp)
+                .padding(horizontal = 32.dp, vertical =24.dp)
                 .fillMaxWidth()
                 // Apple Music 的底栏通常稍高一点，72dp 会比 64dp 更大气
-                .height(72.dp) 
+                .height(64.dp)
                 // 4. 【投影仪】：应用毛玻璃渲染效果
                 .drawBackdrop(
                     backdrop = backdrop,
                     shape = { CircleShape }, // 设置胶囊形状的圆角轮廓
                     effects = {
-                        //饱和度增强：让透出来的颜色更鲜艳，增强玻璃通透感
-                        vibrancy()
-                        //镜头折射：核心的液态玻璃变形效果，模拟光线穿过实体玻璃的扭曲
-                        lens(16f.dp.toPx(), 32f.dp.toPx())
+                        lens(50f.dp.toPx(), 100f.dp.toPx())
                     },
 
                 )
