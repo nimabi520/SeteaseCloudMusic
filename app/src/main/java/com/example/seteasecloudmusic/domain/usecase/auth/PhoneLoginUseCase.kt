@@ -8,8 +8,14 @@ class PhoneLoginUseCase(
 ){
     suspend operator fun invoke(phone: String, password: String): Result<AuthSession> {
         val p = phone.trim()
-        if (p.length !in 11..20) return Result.failure(IllegalArgumentException("invalid phone"))
-        if (password.isBlank()) return Result.failure(IllegalArgumentException("password is blank"))
+
+        if (!AuthInputValidator.isValidCnPhone(p)) {
+            return Result.failure(IllegalArgumentException("invalid phone"))
+        }
+        if (password.isBlank()) {
+            return Result.failure(IllegalArgumentException("password is blank"))
+        }
+
         return authRepository.loginByPhone(p, password)
     }
 }

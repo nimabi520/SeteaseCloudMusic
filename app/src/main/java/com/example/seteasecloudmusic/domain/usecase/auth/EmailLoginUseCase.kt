@@ -8,8 +8,14 @@ class EmailLoginUseCase(
 ) {
     suspend operator fun invoke(email: String, password: String): Result<AuthSession> {
         val e = email.trim()
-        if (!e.contains("@")) return Result.failure(IllegalArgumentException("invalid email"))
-        if (password.isBlank()) return Result.failure(IllegalArgumentException("password is blank"))
+
+        if (!AuthInputValidator.isValidEmail(e)) {
+            return Result.failure(IllegalArgumentException("invalid email"))
+        }
+        if (password.isBlank()) {
+            return Result.failure(IllegalArgumentException("password is blank"))
+        }
+
         return authRepository.loginByEmail(e, password)
     }
 }
