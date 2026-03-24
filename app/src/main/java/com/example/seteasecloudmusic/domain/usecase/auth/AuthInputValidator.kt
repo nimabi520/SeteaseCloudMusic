@@ -13,6 +13,8 @@ object AuthInputValidator {
 
     fun normalizeEmail(email: String): String = email.trim()
 
+    fun normalizeCaptcha(captcha: String): String = captcha.trim()
+
     fun isValidCnPhone(phone: String): Boolean {
         return CN_PHONE_REGEX.matches(phone)
     }
@@ -22,5 +24,9 @@ object AuthInputValidator {
         if (!EMAIL_REGEX.matches(email)) return false
         if (email.contains("..")) return false // 禁止连续点
         return true
+    }
+
+    fun isValidCaptcha(captcha: String): Boolean {
+        return captcha.length == 6 && captcha.all { it in '0'..'9' }
     }
 }

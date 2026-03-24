@@ -7,7 +7,7 @@ class PhoneLoginUseCase(
     private val authRepository: AuthRepository
 ){
     suspend operator fun invoke(phone: String, password: String): Result<AuthSession> {
-        val p = phone.trim()
+        val p = AuthInputValidator.normalizePhone(phone)
 
         if (!AuthInputValidator.isValidCnPhone(p)) {
             return Result.failure(IllegalArgumentException("invalid phone"))

@@ -6,8 +6,12 @@ class SendCaptchaUseCase (
     private val authRepository: AuthRepository
 ) {
     suspend operator fun invoke(phone: String): Result<Unit> {
-        val p = phone.trim()
-        if (p.length !in 11..20) return Result.failure(IllegalArgumentException("invalid phone"))
+        val p = AuthInputValidator.normalizePhone(phone)
+
+        if (!AuthInputValidator.isValidCnPhone(p)) {
+            return Result.failure(IllegalArgumentException("invalid phone"))
+        }
+
         return authRepository.sendCaptcha(p)
     }
 }
