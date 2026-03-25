@@ -4,12 +4,16 @@ import com.example.seteasecloudmusic.domain.model.Track
 import com.example.seteasecloudmusic.domain.repository.MusicRepository
 
 /**
- * 搜索音乐的业务逻辑单元
+ * `domain.usecase` 模块说明：
  *
- * 1. 接收 ViewModel 传来的参数
- * 2. 调用 Repository 获取数据
+ * UseCase 用来承载“单一业务动作”，把界面层想做的一件事包装起来。
+ * 这样上层不需要知道数据来自哪里，也不需要自己拼接业务规则。
+ *
+ * `SearchMusicUseCase` 负责：
+ * 1. 接收搜索关键词和分页参数。
+ * 2. 做最基础的输入校验与清洗。
+ * 3. 调用 `MusicRepository` 返回搜索结果。
  */
-
 class SearchMusicUseCase(
     private val musicRepository: MusicRepository
 ) {
