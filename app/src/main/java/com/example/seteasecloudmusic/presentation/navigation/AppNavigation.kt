@@ -100,9 +100,11 @@ fun AppNavigation() {
                     backdrop = backdrop,
                     shape = { CircleShape }, // 设置胶囊形状的圆角轮廓
                     effects = {
-                        lens(50f.dp.toPx(), 100f.dp.toPx())
+                        vibrancy()
+                        blur(2f.dp.toPx())
+                        lens(16f.dp.toPx(), 32f.dp.toPx())
                     },
-
+                    onDrawSurface = { drawRect(Color.White.copy(alpha = 0.5f)) }, // 在毛玻璃表面绘制半透明白色，增强 iOS 风格的清爽感
                 )
         ) {
             // --- 导航栏内部按钮布局 ---
