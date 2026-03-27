@@ -165,13 +165,13 @@ fun AppNavigation() {
             LiquidGlassBackground()
         }
 
-        // 在主导航栏上方显示玻璃滑块。
+        // 在主导航栏上方悬浮显示玻璃滑块。
         GlassSlider(
             backdrop = backdrop,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .windowInsetsPadding(WindowInsets.navigationBars)
-                .padding(bottom = 100.dp)
+                .padding(bottom = 104.dp) // 24dp(底部导航栏间距) + 64dp(导航栏高度) + 16dp(悬浮间距)
         )
 
         // --- 顶层悬浮导航栏及独立搜索按钮 ---
@@ -366,7 +366,7 @@ private fun LiquidGlassBackground(modifier: Modifier = Modifier) {
     val density = LocalDensity.current
     
     // 这些参数控制背景色块的大小、密度和整体留白。
-    val tileSize = with(density) { 90.dp.toPx() }
+    val tileSize = with(density) { 75.dp.toPx() }
     val tileGap = with(density) { 22.dp.toPx() }
     val cornerRadius = with(density) { 24.dp.toPx() }
     val topPadding = with(density) { 30.dp.toPx() }
