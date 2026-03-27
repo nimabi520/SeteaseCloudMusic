@@ -4,6 +4,7 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -32,8 +33,10 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.lerp
+import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.backdrop.backdrops.layerBackdrop
+import com.kyant.backdrop.backdrops.rememberCombinedBackdrop
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
@@ -60,6 +63,50 @@ import kotlinx.coroutines.launch
  * @property icon 导航项显示的图标资源
  */
 data class BottomNavItem(val title: String, val icon: ImageVector)
+
+//底栏上方的玻璃滑块
+@Composable
+fun GlassSlider(
+    backdrop: Backdrop,
+    modifier: Modifier = Modifier
+) {
+    BoxWithConstraints(
+        modifier
+            .padding(horizontal = 24f.dp)
+            .fillMaxWidth(),
+        contentAlignment = Alignment.CenterStart
+    ) {
+        val trackBackdrop = rememberLayerBackdrop()
+
+        // track
+        Box(
+            Modifier
+                .layerBackdrop(trackBackdrop)
+                .background(Color(0xFF0088FF), CircleShape)
+                .height(6f.dp)
+                .fillMaxWidth()
+        )
+
+        // thumb
+        Box(
+            Modifier
+                .offset(x = maxWidth / 2f - 28f.dp)
+                .drawBackdrop(
+                    // 直接使用主背景做采样，保证当前版本 API 下可编译且可见。
+                    backdrop = rememberCombinedBackdrop(backdrop, trackBackdrop),
+                            shape = { CircleShape },
+                    effects = {
+                        lens(
+                            refractionHeight = 12f.dp.toPx(),
+                            refractionAmount = 16f.dp.toPx(),
+                            chromaticAberration = true
+                        )
+                    }
+                )
+                .size(56f.dp, 32f.dp)
+        )
+    }
+}
 
 /**
  * 应用的主导航入口组件
@@ -117,6 +164,15 @@ fun AppNavigation() {
             // 当前先只放背景，后续接入页面内容时也可以放在这一层一起参与采样。
             LiquidGlassBackground()
         }
+
+        // 在主导航栏上方显示玻璃滑块。
+        GlassSlider(
+            backdrop = backdrop,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .windowInsetsPadding(WindowInsets.navigationBars)
+                .padding(bottom = 100.dp)
+        )
 
         // --- 顶层悬浮导航栏及独立搜索按钮 ---
         Row(

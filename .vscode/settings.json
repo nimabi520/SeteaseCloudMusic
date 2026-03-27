@@ -1,5 +1,24 @@
 {
     "java.configuration.updateBuildConfiguration": "interactive",
+    "java.compile.nullAnalysis.mode": "automatic",
+
+    // Android 构建配置
+    "gradle.nestedProjects": true,
+    "gradle.autoDetect": true,
+
+    // 文件排除，减少搜索结果噪音
+    "files.exclude": {
+        "**/.gradle": true,
+        "**/build": true,
+        "**/.idea": true,
+        "**/*.iml": true,
+        "**/local.properties": true
+    },
+
+    // Android iOS Emulator 扩展配置
+    "android-emulator.emulatorPath": "${env:ANDROID_HOME}/emulator",
+    "android-emulator.adbPath": "${env:ANDROID_HOME}/platform-tools/adb",
+
     "chat.mcp.serverSampling": {
         "SeteaseCloudMusic/.vscode/mcp.json: my-mcp-server-de9b4ab9": {
             "allowedModels": [
