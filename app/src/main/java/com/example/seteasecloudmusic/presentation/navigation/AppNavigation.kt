@@ -1,6 +1,8 @@
 package com.example.seteasecloudmusic.presentation.navigation
 
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
@@ -30,6 +32,8 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.lerp
@@ -68,7 +72,11 @@ data class BottomNavItem(val title: String, val icon: ImageVector)
 @Composable
 fun GlassSlider(
     backdrop: Backdrop,
+    contentBackdrop: Backdrop,
     mainItemCount: Int,
+    selectedIndex: Int,
+    itemCenterRatios: List<Float>,
+    itemWidthRatios: List<Float>,
     navBarHeight: androidx.compose.ui.unit.Dp,
     horizontalPadding: androidx.compose.ui.unit.Dp,
     mainSearchGap: androidx.compose.ui.unit.Dp,
@@ -89,18 +97,45 @@ fun GlassSlider(
                 .fillMaxHeight(),
             contentAlignment = Alignment.CenterStart
         ) {
-            val trackBackdrop = rememberLayerBackdrop()
             val slotWidth = if (mainItemCount > 0) maxWidth / mainItemCount.toFloat() else 0.dp
-            val thumbWidth = maxOf(slotWidth * 0.72f, 40.dp)
+            val activeMainIndex = selectedIndex.takeIf { it in 0 until mainItemCount } ?: 0
+            val fallbackCenterRatio = (activeMainIndex + 0.5f) / mainItemCount.coerceAtLeast(1).toFloat()
+            val centerRatio = itemCenterRatios.getOrNull(activeMainIndex)
+                ?.takeIf { it.isFinite() && it in 0f..1f }
+                ?: fallbackCenterRatio
+            val fallbackWidthRatio = 1f / mainItemCount.coerceAtLeast(1).toFloat()
+            val widthRatio = itemWidthRatios.getOrNull(activeMainIndex)
+                ?.takeIf { it.isFinite() && it > 0f }
+                ?: fallbackWidthRatio
+
+            // 按实测项宽度扩张一圈，让高亮区域更贴近“图标+文字”的视觉重心。
+            val targetThumbWidth = (maxWidth * (widthRatio + 0.22f)).coerceIn(48.dp, slotWidth * 0.98f)
+            val targetThumbOffsetX = (maxWidth * centerRatio - targetThumbWidth / 2f)
+                .coerceIn(0.dp, (maxWidth - targetThumbWidth).coerceAtLeast(0.dp))
+
+            val animatedThumbWidth by animateDpAsState(
+                targetValue = targetThumbWidth,
+                animationSpec = spring(stiffness = 450f, dampingRatio = 0.85f),
+                label = "glassThumbWidth"
+            )
+            val animatedThumbOffsetX by animateDpAsState(
+                targetValue = targetThumbOffsetX,
+                animationSpec = spring(stiffness = 500f, dampingRatio = 0.82f),
+                label = "glassThumbOffset"
+            )
+            val thumbAlpha by animateFloatAsState(
+                targetValue = if (selectedIndex in 0 until mainItemCount) 1f else 0f,
+                animationSpec = spring(stiffness = 500f, dampingRatio = 0.9f),
+                label = "glassThumbAlpha"
+            )
             val thumbHeight = navBarHeight
-            val centerIndex = (mainItemCount - 1).coerceAtLeast(0) / 2
-            val thumbOffsetX = slotWidth * centerIndex + (slotWidth - thumbWidth) / 2f
 
             Box(
                 Modifier
-                    .offset(x = thumbOffsetX)
+                    .graphicsLayer { alpha = thumbAlpha }
+                    .offset(x = animatedThumbOffsetX)
                     .drawBackdrop(
-                        backdrop = rememberCombinedBackdrop(backdrop, trackBackdrop),
+                        backdrop = rememberCombinedBackdrop(backdrop, contentBackdrop),
                         shape = { CircleShape },
                         effects = {
                             lens(
@@ -110,7 +145,7 @@ fun GlassSlider(
                             )
                         }
                     )
-                    .size(thumbWidth, thumbHeight)
+                    .size(animatedThumbWidth, thumbHeight)
             )
         }
 
@@ -149,6 +184,7 @@ fun AppNavigation() {
         drawRect(backgroundColor)
         drawContent()
     }
+    val navBarContentBackdrop = rememberLayerBackdrop()
 
     // 记录当前选中的导航项：
     // 0~2 对应左侧主导航条，3 对应右侧搜索按钮。
@@ -160,6 +196,12 @@ fun AppNavigation() {
         BottomNavItem("电台", Icons.Filled.Radio),
         BottomNavItem("我的", Icons.Filled.Person)
     )
+    val itemCenterRatios = remember(mainNavItems.size) {
+        mutableStateListOf<Float>().apply { repeat(mainNavItems.size) { add(Float.NaN) } }
+    }
+    val itemWidthRatios = remember(mainNavItems.size) {
+        mutableStateListOf<Float>().apply { repeat(mainNavItems.size) { add(Float.NaN) } }
+    }
 
     // 抽成共享布局参数，保证底栏和滑块按同一套比例计算。
     val horizontalPadding = 24.dp
@@ -186,6 +228,8 @@ fun AppNavigation() {
         Row(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
+                // 让滑块可以采样到底栏和图标内容，而不仅是背景层。
+                .layerBackdrop(navBarContentBackdrop)
                 // 1. 先避开系统导航栏（小白条）
                 .windowInsetsPadding(WindowInsets.navigationBars)
                 // 2. 手动添加上下左右的间距，左右缩进，底部悬浮
@@ -273,7 +317,16 @@ fun AppNavigation() {
                                 ) {
                                     selectedIndex = index
                                 }
-                                .padding(8.dp),
+                                .padding(8.dp)
+                                .onGloballyPositioned { coordinates ->
+                                    val parentWidth = coordinates.parentLayoutCoordinates?.size?.width?.toFloat() ?: return@onGloballyPositioned
+                                    if (parentWidth <= 0f) return@onGloballyPositioned
+                                    val centerX = coordinates.positionInParent().x + coordinates.size.width / 2f
+                                    itemCenterRatios[index] = (centerX / parentWidth).coerceIn(0f, 1f)
+                                    itemWidthRatios[index] = (coordinates.size.width / parentWidth).coerceAtMost(1f)
+                                },
+                            // 记录真实中心和宽度占比，供上层滑块做“视觉中心”对齐。
+                            // 由于当前父布局是 SpaceEvenly，文字宽度变化会影响中心点，实测值更准确。
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             Icon(
@@ -361,7 +414,11 @@ fun AppNavigation() {
         // 放在 Row 之后绘制，让玻璃滑块视觉上悬浮在导航栏上层。
         GlassSlider(
             backdrop = backdrop,
+            contentBackdrop = navBarContentBackdrop,
             mainItemCount = mainNavItems.size,
+            selectedIndex = selectedIndex,
+            itemCenterRatios = itemCenterRatios,
+            itemWidthRatios = itemWidthRatios,
             navBarHeight = navBarHeight,
             horizontalPadding = horizontalPadding,
             mainSearchGap = mainSearchGap,
