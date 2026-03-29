@@ -68,43 +68,54 @@ data class BottomNavItem(val title: String, val icon: ImageVector)
 @Composable
 fun GlassSlider(
     backdrop: Backdrop,
+    mainItemCount: Int,
+    navBarHeight: androidx.compose.ui.unit.Dp,
+    horizontalPadding: androidx.compose.ui.unit.Dp,
+    mainSearchGap: androidx.compose.ui.unit.Dp,
+    searchButtonWidth: androidx.compose.ui.unit.Dp,
     modifier: Modifier = Modifier
 ) {
-    BoxWithConstraints(
-        modifier
-            .padding(horizontal = 24f.dp)
-            .fillMaxWidth(),
-        contentAlignment = Alignment.CenterStart
+    Row(
+        modifier = modifier
+            .padding(horizontal = horizontalPadding)
+            .fillMaxWidth()
+            .height(navBarHeight),
+        horizontalArrangement = Arrangement.spacedBy(mainSearchGap),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        val trackBackdrop = rememberLayerBackdrop()
+        BoxWithConstraints(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight(),
+            contentAlignment = Alignment.CenterStart
+        ) {
+            val trackBackdrop = rememberLayerBackdrop()
+            val slotWidth = if (mainItemCount > 0) maxWidth / mainItemCount.toFloat() else 0.dp
+            val thumbWidth = maxOf(slotWidth * 0.72f, 40.dp)
+            val thumbHeight = navBarHeight
+            val centerIndex = (mainItemCount - 1).coerceAtLeast(0) / 2
+            val thumbOffsetX = slotWidth * centerIndex + (slotWidth - thumbWidth) / 2f
 
-        // track
-        Box(
-            Modifier
-                .layerBackdrop(trackBackdrop)
-                .background(Color(0xFF0088FF), CircleShape)
-                .height(6f.dp)
-                .fillMaxWidth()
-        )
+            Box(
+                Modifier
+                    .offset(x = thumbOffsetX)
+                    .drawBackdrop(
+                        backdrop = rememberCombinedBackdrop(backdrop, trackBackdrop),
+                        shape = { CircleShape },
+                        effects = {
+                            lens(
+                                refractionHeight = 12f.dp.toPx(),
+                                refractionAmount = 16f.dp.toPx(),
+                                chromaticAberration = true
+                            )
+                        }
+                    )
+                    .size(thumbWidth, thumbHeight)
+            )
+        }
 
-        // thumb
-        Box(
-            Modifier
-                .offset(x = maxWidth / 2f - 28f.dp)
-                .drawBackdrop(
-                    // 直接使用主背景做采样，保证当前版本 API 下可编译且可见。
-                    backdrop = rememberCombinedBackdrop(backdrop, trackBackdrop),
-                            shape = { CircleShape },
-                    effects = {
-                        lens(
-                            refractionHeight = 12f.dp.toPx(),
-                            refractionAmount = 16f.dp.toPx(),
-                            chromaticAberration = true
-                        )
-                    }
-                )
-                .size(56f.dp, 32f.dp)
-        )
+        // 占位搜索按钮宽度，确保滑块计算区域与主导航条完全一致。
+        Spacer(modifier = Modifier.width(searchButtonWidth))
     }
 }
 
@@ -150,6 +161,12 @@ fun AppNavigation() {
         BottomNavItem("我的", Icons.Filled.Person)
     )
 
+    // 抽成共享布局参数，保证底栏和滑块按同一套比例计算。
+    val horizontalPadding = 24.dp
+    val navBarHeight = 64.dp
+    val mainSearchGap = 16.dp
+    val searchButtonWidth = navBarHeight
+
     // 2. 【舞台】：整个屏幕的根容器，使用 Box 以支持 Z 轴方向的层叠排列
     Box(modifier = Modifier.fillMaxSize()) {
         
@@ -165,15 +182,6 @@ fun AppNavigation() {
             LiquidGlassBackground()
         }
 
-        // 在主导航栏上方悬浮显示玻璃滑块。
-        GlassSlider(
-            backdrop = backdrop,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .windowInsetsPadding(WindowInsets.navigationBars)
-                .padding(bottom = 104.dp) // 24dp(底部导航栏间距) + 64dp(导航栏高度) + 16dp(悬浮间距)
-        )
-
         // --- 顶层悬浮导航栏及独立搜索按钮 ---
         Row(
             modifier = Modifier
@@ -181,12 +189,12 @@ fun AppNavigation() {
                 // 1. 先避开系统导航栏（小白条）
                 .windowInsetsPadding(WindowInsets.navigationBars)
                 // 2. 手动添加上下左右的间距，左右缩进，底部悬浮
-                .padding(horizontal = 24.dp, vertical = 24.dp)
+                .padding(horizontal = horizontalPadding, vertical = 24.dp)
                 .fillMaxWidth()
                 // 保持 Apple Music 的视觉高度
-                .height(64.dp),
+                .height(navBarHeight),
             // 使用 spacedBy 在主导航条和搜索小圆之间留出间距
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
+            horizontalArrangement = Arrangement.spacedBy(mainSearchGap)
         ) {
             
             // ============ 左侧主导航条 (包含主页、电台、我的) ============
@@ -349,6 +357,20 @@ fun AppNavigation() {
                 )
             }
         }
+
+        // 放在 Row 之后绘制，让玻璃滑块视觉上悬浮在导航栏上层。
+        GlassSlider(
+            backdrop = backdrop,
+            mainItemCount = mainNavItems.size,
+            navBarHeight = navBarHeight,
+            horizontalPadding = horizontalPadding,
+            mainSearchGap = mainSearchGap,
+            searchButtonWidth = searchButtonWidth,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .windowInsetsPadding(WindowInsets.navigationBars)
+                .padding(bottom = 24.dp) // 24dp(底部导航栏间距) + 64dp(导航栏高度) + 16dp(悬浮间距)
+        )
     }
 }
 
