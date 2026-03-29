@@ -7,7 +7,15 @@ import androidx.activity.enableEdgeToEdge
 import com.example.seteasecloudmusic.presentation.navigation.AppNavigation
 
 /**
- * 应用主入口 Activity，负责初始化 Compose 导航容器。
+ * `presentation` 模块说明：
+ *
+ * 这一层只关心“界面如何展示”和“用户如何交互”，
+ * 不直接处理网络细节，也不直接实现业务规则。
+ *
+ * `MainActivity` 是 Android 入口，职责很单一：
+ * 1. 初始化 Compose 宿主。
+ * 2. 打开沉浸式边到边布局。
+ * 3. 把应用的根界面 `AppNavigation()` 挂载出来。
  */
 class MainActivity : ComponentActivity() {
     /**

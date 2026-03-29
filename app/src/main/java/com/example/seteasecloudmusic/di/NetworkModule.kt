@@ -1,14 +1,22 @@
 package com.example.seteasecloudmusic.di
 
 import com.example.seteasecloudmusic.data.api.NeteaseMusicService
-import okhttp3.OkHttp
 import okhttp3.OkHttpClient
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import java.util.concurrent.TimeUnit
 
 /**
- * 网络层依赖提供者，负责构建 OkHttp、Retrofit 与服务接口。
+ * `di` 模块说明：
+ *
+ * 这一层负责“组装依赖”，也就是把网络、仓库、用例等对象按需要创建出来。
+ * 当前文件先手动承担了简单依赖注入的职责，后续如果接入 Hilt/Koin，
+ * 这里的思路仍然一样，只是写法会更框架化。
+ *
+ * `NetworkModule` 当前主要负责：
+ * 1. 定义服务端基础地址。
+ * 2. 配置 OkHttp 超时等网络参数。
+ * 3. 创建 Retrofit 并产出 `NeteaseMusicService`。
  */
 class NetworkModule {
 
@@ -22,10 +30,10 @@ class NetworkModule {
      */
     private fun provideHttpClient(): OkHttpClient {
         return OkHttpClient.Builder()
-            .connectTimeout(30, TimeUnit.SECONDS) // 设置连接超时时间
-            .readTimeout(30, TimeUnit.SECONDS)    // 设置读取超时时间
-            .writeTimeout(30, TimeUnit.SECONDS)   // 设置写入超时时间
-            //TODO:以后记得回来添加拦截器
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(30, TimeUnit.SECONDS)
+            .writeTimeout(30, TimeUnit.SECONDS)
+            // TODO: 以后可在这里补登录态、日志、统一错误处理等拦截器。
             .build()
     }
 
@@ -36,7 +44,7 @@ class NetworkModule {
         return Retrofit.Builder()
             .baseUrl(provideBaseUrl())
             .client(client)
-            .addConverterFactory(GsonConverterFactory.create()) // 添加 Gson 转换器
+            .addConverterFactory(GsonConverterFactory.create())
             .build()
     }
 

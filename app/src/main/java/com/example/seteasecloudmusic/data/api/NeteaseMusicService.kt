@@ -6,7 +6,13 @@ import retrofit2.http.GET
 import retrofit2.http.Query
 
 /**
- * 网易云音乐核心网络接口：搜索与歌曲播放链接。
+ * `data.api` 模块说明：
+ *
+ * 这一层直接描述“怎么和后端接口通信”，只关心请求路径、参数和响应模型。
+ * 它不处理业务判断，也不决定界面怎么展示。
+ *
+ * `NeteaseMusicService` 是 Retrofit 接口声明，
+ * 负责把网易云相关 HTTP API 映射成可直接调用的 Kotlin suspend 函数。
  */
 interface NeteaseMusicService {
     /**

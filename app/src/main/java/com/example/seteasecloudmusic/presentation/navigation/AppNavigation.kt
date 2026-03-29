@@ -1,9 +1,16 @@
 package com.example.seteasecloudmusic.presentation.navigation
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.PressInteraction
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.CircleShape
@@ -19,17 +26,35 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.util.lerp
+import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.backdrop.backdrops.layerBackdrop
+import com.kyant.backdrop.backdrops.rememberCombinedBackdrop
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.effects.vibrancy
 import com.kyant.shapes.RoundedRectangle
+import kotlinx.coroutines.launch
+
+/**
+ * `presentation.navigation` 模块说明：
+ *
+ * 这一层属于表现层，主要负责：
+ * 1. 组织页面入口与页面切换结构。
+ * 2. 承载纯 UI 的状态，例如当前选中的导航项、按压动画进度。
+ * 3. 把视觉效果和交互组合成最终可展示的界面。
+ *
+ * 当前文件是应用的导航外壳，暂时还没有接入真正的 NavHost，
+ * 因此它更像“首页容器 + 底部导航栏”的组合入口。
+ */
 
 /**
  * 底部导航栏的数据模型
@@ -38,6 +63,50 @@ import com.kyant.shapes.RoundedRectangle
  * @property icon 导航项显示的图标资源
  */
 data class BottomNavItem(val title: String, val icon: ImageVector)
+
+//底栏上方的玻璃滑块
+@Composable
+fun GlassSlider(
+    backdrop: Backdrop,
+    modifier: Modifier = Modifier
+) {
+    BoxWithConstraints(
+        modifier
+            .padding(horizontal = 24f.dp)
+            .fillMaxWidth(),
+        contentAlignment = Alignment.CenterStart
+    ) {
+        val trackBackdrop = rememberLayerBackdrop()
+
+        // track
+        Box(
+            Modifier
+                .layerBackdrop(trackBackdrop)
+                .background(Color(0xFF0088FF), CircleShape)
+                .height(6f.dp)
+                .fillMaxWidth()
+        )
+
+        // thumb
+        Box(
+            Modifier
+                .offset(x = maxWidth / 2f - 28f.dp)
+                .drawBackdrop(
+                    // 直接使用主背景做采样，保证当前版本 API 下可编译且可见。
+                    backdrop = rememberCombinedBackdrop(backdrop, trackBackdrop),
+                            shape = { CircleShape },
+                    effects = {
+                        lens(
+                            refractionHeight = 12f.dp.toPx(),
+                            refractionAmount = 16f.dp.toPx(),
+                            chromaticAberration = true
+                        )
+                    }
+                )
+                .size(56f.dp, 32f.dp)
+        )
+    }
+}
 
 /**
  * 应用的主导航入口组件
@@ -51,20 +120,33 @@ data class BottomNavItem(val title: String, val icon: ImageVector)
  */
 @Composable
 fun AppNavigation() {
-    // 1. 【准备胶片】：创建一个 layerBackdrop 状态来保存底层渲染的实时画面
+    // 背景底色会参与毛玻璃采样，决定整个导航栏的基础明度。
     val backgroundColor = Color.White
+    
+    // 主导航栏按下/抬起时的缩放动画进度。
+    val mainBarAnimationScope = rememberCoroutineScope()
+    val mainBarProgressAnimation = remember { Animatable(0f) }
+    
+    // 右侧独立搜索按钮使用单独的动画状态，避免和主导航条互相影响。
+    val searchAnimationScope = rememberCoroutineScope()
+    val searchProgressAnimation = remember { Animatable(0f) }
+    
+    // 统一的弹簧动画参数，让导航条和搜索按钮保持一致的按压反馈。
+    val animationSpec = remember { spring<Float>(0.5f, 300f, 0.001f) }
+    
     val backdrop = rememberLayerBackdrop{
         drawRect(backgroundColor)
-                drawContent()
+        drawContent()
     }
-    // 记录当前选中的导航项索引
+
+    // 记录当前选中的导航项：
+    // 0~2 对应左侧主导航条，3 对应右侧搜索按钮。
     var selectedIndex by remember { mutableIntStateOf(0) }
 
-    // 定义底部导航栏的四个主要功能入口
-    val navItems = listOf(
+    // 左侧主导航条目前承载三个一级入口。
+    val mainNavItems = listOf(
         BottomNavItem("主页", Icons.Filled.Home),
         BottomNavItem("电台", Icons.Filled.Radio),
-        BottomNavItem("搜索", Icons.Filled.Search),
         BottomNavItem("我的", Icons.Filled.Person)
     )
 
@@ -75,81 +157,199 @@ fun AppNavigation() {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                // 3. 【架设摄像机】：将此 Box 标记为 backdrop 的捕获源
-                // 只要放在这个 Box 里的东西（背景、页面内容），都会被实时渲染并送进 backdrop
+                // 这里是毛玻璃的“取景层”。
+                // 被包进来的内容会先渲染到底层纹理，再提供给上面的导航栏做模糊采样。
                 .layerBackdrop(backdrop)
         ) {
-            // 绘制多彩的液态背景，因为被包裹在 layerBackdrop 中，底栏可以捕获到它的色彩
+            // 当前先只放背景，后续接入页面内容时也可以放在这一层一起参与采样。
             LiquidGlassBackground()
         }
 
-        // --- 顶层悬浮导航栏 ---
-        Box(
+        // 在主导航栏上方悬浮显示玻璃滑块。
+        GlassSlider(
+            backdrop = backdrop,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .windowInsetsPadding(WindowInsets.navigationBars)
+                .padding(bottom = 104.dp) // 24dp(底部导航栏间距) + 64dp(导航栏高度) + 16dp(悬浮间距)
+        )
+
+        // --- 顶层悬浮导航栏及独立搜索按钮 ---
+        Row(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 // 1. 先避开系统导航栏（小白条）
                 .windowInsetsPadding(WindowInsets.navigationBars)
-                // 2. 【关键修正】手动添加上下左右的间距，这才是让它"悬浮"起来的核心！
-                // 单靠 safeContentPadding 只是避开遮挡，不会产生设计上的悬浮感
-                .padding(horizontal = 32.dp, vertical =24.dp)
+                // 2. 手动添加上下左右的间距，左右缩进，底部悬浮
+                .padding(horizontal = 24.dp, vertical = 24.dp)
                 .fillMaxWidth()
-                // Apple Music 的底栏通常稍高一点，72dp 会比 64dp 更大气
-                .height(64.dp)
-                // 4. 【投影仪】：应用毛玻璃渲染效果
-                .drawBackdrop(
-                    backdrop = backdrop,
-                    shape = { CircleShape }, // 设置胶囊形状的圆角轮廓
-                    effects = {
-                        lens(50f.dp.toPx(), 100f.dp.toPx())
-                    },
-
-                )
+                // 保持 Apple Music 的视觉高度
+                .height(64.dp),
+            // 使用 spacedBy 在主导航条和搜索小圆之间留出间距
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // --- 导航栏内部按钮布局 ---
-            Row(
-                modifier = Modifier.fillMaxSize(),
-                horizontalArrangement = Arrangement.SpaceEvenly, // 使四个按钮在水平方向均匀分布
-                verticalAlignment = Alignment.CenterVertically   // 垂直居中对齐
+            
+            // ============ 左侧主导航条 (包含主页、电台、我的) ============
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .graphicsLayer {
+                        // 按下时整体轻微放大，模拟液态玻璃被“压出张力”的感觉。
+                        val progress = mainBarProgressAnimation.value
+                        val maxScale = (size.width + 16f.dp.toPx()) / size.width
+                        val scale = lerp(1f, maxScale, progress)
+                        scaleX = scale
+                        scaleY = scale
+                    }
+                    .drawBackdrop(
+                        backdrop = backdrop,
+                        shape = { CircleShape },
+                        effects = {
+                            vibrancy()
+                            blur(2f.dp.toPx())
+                            lens(16f.dp.toPx(), 32f.dp.toPx())
+                        },
+                        layerBlock = {
+                            val progress = mainBarProgressAnimation.value
+                            val maxScale = (size.width + 16f.dp.toPx()) / size.width
+                            val scale = lerp(1f, maxScale, progress)
+                            scaleX = scale
+                            scaleY = scale
+                        },
+                        // 半透明白色表面让底层色块在模糊后保留一点“磨砂感”。
+                        onDrawSurface = { drawRect(Color.White.copy(alpha = 0.5f)) },
+                    )
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) {}
+                    .pointerInput(mainBarAnimationScope) {
+                        awaitEachGesture {
+                            awaitFirstDown()
+                            mainBarAnimationScope.launch { mainBarProgressAnimation.animateTo(1f, animationSpec) }
+                            waitForUpOrCancellation()
+                            mainBarAnimationScope.launch { mainBarProgressAnimation.animateTo(0f, animationSpec) }
+                        }
+                    }
             ) {
-                navItems.forEachIndexed { index, item ->
-                    // 判断当前按钮是否被选中
-                    val isSelected = selectedIndex == index
-                    // 选中状态显示红色(参考 Apple Music)，未选中显示深灰色
-                    val itemColor = if (isSelected) Color(0xFFFA233B) else Color.DarkGray
+                // 主导航栏内部负责均分三个一级入口。
+                Row(
+                    modifier = Modifier.fillMaxSize(),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    mainNavItems.forEachIndexed { index, item ->
+                        val isSelected = selectedIndex == index
+                        val itemColor = if (isSelected) Color(0xFFFA233B) else Color.DarkGray
+                        val interactionSource = remember { MutableInteractionSource() }
 
-                    Column(
-                        modifier = Modifier
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null // 禁用默认的水波纹效果，保持 iOS 风格的清爽感
-                            ) {
-                                // 点击时更新选中索引，触发 UI 重组
-                                selectedIndex = index
+                        LaunchedEffect(interactionSource) {
+                            interactionSource.interactions.collect { interaction ->
+                                when (interaction) {
+                                    is PressInteraction.Press -> {
+                                        mainBarAnimationScope.launch { mainBarProgressAnimation.animateTo(1f, animationSpec) }
+                                    }
+                                    is PressInteraction.Release, is PressInteraction.Cancel -> {
+                                        mainBarAnimationScope.launch { mainBarProgressAnimation.animateTo(0f, animationSpec) }
+                                    }
+                                }
                             }
-                            .padding(8.dp), // 增加点击热区
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        // 图标
-                        Icon(
-                            imageVector = item.icon,
-                            contentDescription = item.title,
-                            tint = itemColor,
-                            modifier = Modifier.size(28.dp)
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        // 标题文字
-                        Text(
-                            text = item.title,
-                            color = itemColor,
-                            style = MaterialTheme.typography.labelSmall
-                        )
+                        }
+
+                        Column(
+                            modifier = Modifier
+                                .clickable(
+                                    interactionSource = interactionSource,
+                                    indication = null // 禁用默认水波纹
+                                ) {
+                                    selectedIndex = index
+                                }
+                                .padding(8.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Icon(
+                                imageVector = item.icon,
+                                contentDescription = item.title,
+                                tint = itemColor,
+                                modifier = Modifier.size(28.dp)
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = item.title,
+                                color = itemColor,
+                                style = MaterialTheme.typography.labelSmall
+                            )
+                        }
                     }
                 }
             }
+
+            // ============ 右侧独立的搜索按钮 ============
+            val isSearchSelected = selectedIndex == 3
+            val searchColor = if (isSearchSelected) Color(0xFFFA233B) else Color.DarkGray
+            val searchInteractionSource = remember { MutableInteractionSource() }
+            
+            LaunchedEffect(searchInteractionSource) {
+                searchInteractionSource.interactions.collect { interaction ->
+                    when (interaction) {
+                        is PressInteraction.Press -> {
+                            searchAnimationScope.launch { searchProgressAnimation.animateTo(1f, animationSpec) }
+                        }
+                        is PressInteraction.Release, is PressInteraction.Cancel -> {
+                            searchAnimationScope.launch { searchProgressAnimation.animateTo(0f, animationSpec) }
+                        }
+                    }
+                }
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight() // 高度跟随导航栏，视觉上保持独立悬浮。
+                    .aspectRatio(1f) // 让容器保持 1:1，从而形成正圆按钮。
+                    .graphicsLayer {
+                        val progress = searchProgressAnimation.value
+                        // 搜索按钮更小，所以放大量也略小于主导航条。
+                        val maxScale = (size.width + 8f.dp.toPx()) / size.width
+                        val scale = lerp(1f, maxScale, progress)
+                        scaleX = scale
+                        scaleY = scale
+                    }
+                    .drawBackdrop(
+                        backdrop = backdrop,
+                        shape = { CircleShape },
+                        effects = {
+                            vibrancy()
+                            blur(2f.dp.toPx())
+                            lens(16f.dp.toPx(), 32f.dp.toPx())
+                        },
+                        layerBlock = {
+                            val progress = searchProgressAnimation.value
+                            val maxScale = (size.width + 8f.dp.toPx()) / size.width
+                            val scale = lerp(1f, maxScale, progress)
+                            scaleX = scale
+                            scaleY = scale
+                        },
+                        onDrawSurface = { drawRect(Color.White.copy(alpha = 0.5f)) },
+                    )
+                    .clickable(
+                        interactionSource = searchInteractionSource,
+                        indication = null
+                    ) {
+                        selectedIndex = 3
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Search,
+                    contentDescription = "搜索",
+                    tint = searchColor,
+                    // 搜索入口是独立按钮，因此只保留图标，不再额外显示文字。
+                    modifier = Modifier.size(32.dp)
+                )
+            }
         }
     }
-
-
 }
 
 /**
@@ -162,45 +362,39 @@ fun AppNavigation() {
  */
 @Composable
 private fun LiquidGlassBackground(modifier: Modifier = Modifier) {
-    // 获取屏幕密度，用于将 dp 转换为 px
+    // 将 dp 尺寸统一换成 px，方便直接在 Canvas 中计算位置。
     val density = LocalDensity.current
     
-    // 定义各种尺寸参数
-    val tileSize = with(density) { 90.dp.toPx() } // 色块大小
-    val tileGap = with(density) { 22.dp.toPx() }   // 色块间距
-    val cornerRadius = with(density) { 24.dp.toPx() } // 色块圆角
-    val topPadding = with(density) { 30.dp.toPx() }  // 顶部起始偏移
-    val sidePadding = with(density) { 30.dp.toPx() }  // 侧边起始偏移
+    // 这些参数控制背景色块的大小、密度和整体留白。
+    val tileSize = with(density) { 75.dp.toPx() }
+    val tileGap = with(density) { 22.dp.toPx() }
+    val cornerRadius = with(density) { 24.dp.toPx() }
+    val topPadding = with(density) { 30.dp.toPx() }
+    val sidePadding = with(density) { 30.dp.toPx() }
 
-    // 定义背景配色板
+    // 调色板决定了毛玻璃采样后的色彩倾向。
     val palette = listOf(
-        Color(0xFFE9425D), // 红色系
-        Color(0xFFE9923F), // 橙色系
-        Color(0xFF65BE66), // 绿色系
-        Color(0xFF5AB4C0)  // 蓝青色系
+        Color(0xFFE9425D),
+        Color(0xFFE9923F),
+        Color(0xFF65BE66),
+        Color(0xFF5AB4C0)
     )
 
     Canvas(modifier = modifier.fillMaxSize()) {
-        // 1. 绘制灰白色底色
+        // 先铺一层浅灰底，避免纯白背景下毛玻璃层次过弱。
         drawRect(color = Color(0xFFE6E6E6))
 
-        // 计算步长和行数
         val step = tileSize + tileGap
-        // 根据屏幕高度动态计算需要绘制多少行
         val rowCount = ((size.height - topPadding) / step).toInt() + 2
 
-        // 2. 循环绘制色块矩阵
+        // 用规则矩阵生成整块背景，效果稳定，也便于后续替换成更复杂的动态背景。
         for (row in 0 until rowCount) {
             val y = topPadding + row * step
             for (column in 0 until palette.size) {
-                // 计算当前色块的 X 坐标
                 val x = sidePadding + column * step
-                // 绘制圆角矩形
                 drawRoundRect(
-                    color = palette[column], // 循环使用配色板中的颜色（此时其实是按索引越界循环，但在 Compose 中 list get 需要注意越界，这里原本逻辑可能隐含假设 palette 足够涵盖 column，或者原本逻辑只是示例）
-                    // 修正：上面的原始逻辑 palette[column] 如果 column >= palette.size 会崩溃。
-                    // 实际上看步长，屏幕宽度通常只够放2-3个，这里假设 column 不会超过 palette.size。
-                    // 为了健壮性，建议取模： palette[column % palette.size]
+                    // 这里每列直接取对应色值，形成稳定的纵向色带。
+                    color = palette[column],
                     topLeft = Offset(x, y),
                     size = androidx.compose.ui.geometry.Size(tileSize, tileSize),
                     cornerRadius = CornerRadius(cornerRadius, cornerRadius)

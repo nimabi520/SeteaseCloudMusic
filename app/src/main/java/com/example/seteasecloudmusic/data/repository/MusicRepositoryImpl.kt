@@ -10,6 +10,16 @@ import com.example.seteasecloudmusic.domain.repository.MusicRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
+/**
+ * `data.repository` 模块说明：
+ *
+ * Repository 实现层负责站在 data 和 domain 中间做衔接：
+ * 1. 调用具体数据源，例如 Retrofit API、本地数据库、缓存等。
+ * 2. 把网络返回的数据模型转换成 domain 层真正使用的模型。
+ * 3. 屏蔽数据来源细节，让上层只依赖抽象接口。
+ *
+ * 当前 `MusicRepositoryImpl` 负责音乐搜索和歌曲播放链接获取。
+ */
 class MusicRepositoryImpl(
     private val musicService: NeteaseMusicService
 ) : MusicRepository {
@@ -20,6 +30,7 @@ class MusicRepositoryImpl(
         offset: Int
     ): Result<List<Track>> = withContext(Dispatchers.IO) {
         try {
+            // 通过远端搜索接口拉取歌曲列表，再映射成领域模型 Track。
             val response = musicService.searchSongs(query, limit, offset)
             if (response.code == 200) {
                 val tracks = response.result?.songs?.map { song ->
@@ -39,6 +50,7 @@ class MusicRepositoryImpl(
         level: String
     ): Result<String> = withContext(Dispatchers.IO) {
         try {
+            // 播放链接属于运行时数据，不直接写死在 Track 中，而是按需查询。
             val response = musicService.getSongUrl(trackId, level)
             if (response.code == 200) {
                 val url = response.data.firstOrNull()?.url
@@ -56,10 +68,11 @@ class MusicRepositoryImpl(
     }
 
     /**
-     * 内部映射函数：将网络的 SearchSongItemResponse 转换为领域的 Track。
+     * 内部映射函数：
+     * 把接口层的 `SearchSongItemResponse` 转换成 domain 层统一使用的 `Track`。
      */
     private fun mapToDomainTrack(song: SearchSongItemResponse): Track {
-        // 提取音质标签
+        // 根据接口返回的音质字段，整理出界面更容易消费的标签列表。
         val qualityTags = mutableListOf<AudioQuality>()
         if (song.sq != null) qualityTags.add(AudioQuality.LOSSLESS)
         if (song.hr != null) qualityTags.add(AudioQuality.HIRES)
@@ -80,16 +93,16 @@ class MusicRepositoryImpl(
             album = Album(
                 id = song.al?.id ?: 0L,
                 title = song.al?.name ?: "未知专辑",
-                // 网易云返回的图片 URL (部分可能叫 picUrl 或 pic_str)
+                // 搜索接口通常直接返回专辑封面链接，UI 可以直接使用。
                 coverUrl = song.al?.picUrl
             ),
-            // Track 本身也保留一份专辑封面作为歌曲封面，方便 UI 直接读取
+            // Track 再保留一份 coverUrl，减少上层读取 album.coverUrl 的样板代码。
             coverUrl = song.al?.picUrl,
             qualityTags = qualityTags,
-            // 如果后续有 URL 可以更新到这里
+            // 播放地址需要单独请求，因此这里只先保留空值。
             playableUrl = null,
-            // 可以通过判断 privilege 层级赋予，如果没有 fee，也可以先假定可播
+            // 这里先用 fee 做一层基础可播判断，后续可再接更细的版权/权限逻辑。
             isPlayable = song.fee != 1 && song.fee != 4 
         )
     }
-} 
+}
