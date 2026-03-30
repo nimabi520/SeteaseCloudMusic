@@ -47,6 +47,7 @@ import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.effects.vibrancy
 import com.kyant.shapes.RoundedRectangle
 import kotlinx.coroutines.launch
+import kotlin.math.absoluteValue
 
 /**
  * `presentation.navigation` 模块说明：
@@ -75,7 +76,9 @@ fun GlassSlider(
     contentBackdrop: Backdrop,
     mainItemCount: Int,
     selectedIndex: Int,
+    dragOffsetX: Float?, // 新增加：拖拽时的横坐标 (px)
     navBarHeight: androidx.compose.ui.unit.Dp,
+    mainBarProgress: Float,
     horizontalPadding: androidx.compose.ui.unit.Dp,
     mainSearchGap: androidx.compose.ui.unit.Dp,
     searchButtonWidth: androidx.compose.ui.unit.Dp,
@@ -93,25 +96,44 @@ fun GlassSlider(
         BoxWithConstraints(
             modifier = Modifier
                 .weight(1f)
-                .fillMaxHeight(),
+                .fillMaxHeight()
+                .graphicsLayer {
+                    // 让滑块在点击状态下的放大程度增大
+                    val maxScale = (size.width + 32f.dp.toPx()) / size.width
+                    val scale = lerp(1f, maxScale, mainBarProgress)
+                    scaleX = scale
+                    scaleY = scale
+                },
             contentAlignment = Alignment.CenterStart
         ) {
             val slotWidth = if (mainItemCount > 0) maxWidth / mainItemCount.toFloat() else 0.dp
             val activeMainIndex = selectedIndex.takeIf { it in 0 until mainItemCount } ?: 0
             // 设置内边距，使滑块不会产生锯齿或溢出。这里使用 0.dp 让滑块与父容器圆角完全重合并填满分段，不产生突出。
             // 也可改为 2.dp / 4.dp 来实现具有内陷感的嵌套分段控件。
-            val thumbPadding = 0.dp
+            val thumbPadding = 4.dp // <-- 刚刚要求改成 4.dp
             val targetThumbWidth = (slotWidth - thumbPadding * 2).coerceAtLeast(0.dp)
-            val targetThumbOffsetX = slotWidth * activeMainIndex + thumbPadding
+            val baseOffsetX = slotWidth * activeMainIndex + thumbPadding
+            
+            val density = LocalDensity.current
+            val targetThumbOffsetX = if (dragOffsetX != null) {
+                // 如果正在拖拽，滑块中心跟随手指 X 坐标
+                val fingerXDp = with(density) { dragOffsetX.toDp() }
+                val halfThumb = targetThumbWidth / 2
+                (fingerXDp - halfThumb).coerceIn(thumbPadding, maxWidth - targetThumbWidth - thumbPadding)
+            } else {
+                baseOffsetX
+            }
 
+            val tracking = dragOffsetX != null
             val animatedThumbWidth by animateDpAsState(
                 targetValue = targetThumbWidth,
-                animationSpec = spring(stiffness = 450f, dampingRatio = 0.85f),
+                // 根据是否在拖拽，切换弹簧参数实现更顺手的跟随效果
+                animationSpec = if (tracking) spring(stiffness = 800f, dampingRatio = 0.8f) else spring(stiffness = 300f, dampingRatio = 0.6f),
                 label = "glassThumbWidth"
             )
             val animatedThumbOffsetX by animateDpAsState(
                 targetValue = targetThumbOffsetX,
-                animationSpec = spring(stiffness = 500f, dampingRatio = 0.82f),
+                animationSpec = if (tracking) spring(stiffness = 800f, dampingRatio = 0.8f) else spring(stiffness = 300f, dampingRatio = 0.6f),
                 label = "glassThumbOffset"
             )
             val thumbAlpha by animateFloatAsState(
@@ -119,13 +141,28 @@ fun GlassSlider(
                 animationSpec = spring(stiffness = 500f, dampingRatio = 0.9f),
                 label = "glassThumbAlpha"
             )
+            // 增加苹果风格的滑动拖拽弹性（Gooey Stretch Effect）
+            // 根据目标与实际的当前动画差值，动态增加滑块的宽度，使其在运动时产生“拉丝”或加速度拉长的效果。
+            val offsetDiff = targetThumbOffsetX - animatedThumbOffsetX
+            val stretchFactor = 0.35f // 弹性强度
+            
+            val renderedOffsetX = if (offsetDiff.value < 0f) {
+                // 如果是往左边滑，真正的视觉起点应该提前向左探出
+                animatedThumbOffsetX + offsetDiff * stretchFactor
+            } else {
+                // 如果是往右边滑，起点不变，右侧宽度增加即可
+                animatedThumbOffsetX
+            }
+            // 宽度在原有基础上叠加差距的绝对值比例
+            val renderedWidth = animatedThumbWidth + offsetDiff.value.absoluteValue.dp * stretchFactor
+
             val thumbHeight = navBarHeight - thumbPadding * 2
             val innerCornerRadius = cornerRadius - thumbPadding
 
             Box(
                 Modifier
                     .graphicsLayer { alpha = thumbAlpha }
-                    .offset(x = animatedThumbOffsetX)
+                    .offset(x = renderedOffsetX)
                     .drawBackdrop(
                         backdrop = rememberCombinedBackdrop(backdrop, contentBackdrop),
                         shape = { RoundedRectangle(innerCornerRadius) },
@@ -169,14 +206,18 @@ fun AppNavigation() {
     val searchAnimationScope = rememberCoroutineScope()
     val searchProgressAnimation = remember { Animatable(0f) }
     
-    // 统一的弹簧动画参数，让导航条和搜索按钮保持一致的按压反馈。
-    val animationSpec = remember { spring<Float>(0.5f, 300f, 0.001f) }
+    // 缩小底栏接收点击时的弹跳程度，增加 stiffness 使其更紧致，缩小弹跳幅度
+    val animationSpec = remember { spring<Float>(0.8f, 500f, 0.001f) }
     
     val backdrop = rememberLayerBackdrop{
         drawRect(backgroundColor)
         drawContent()
     }
     val navBarContentBackdrop = rememberLayerBackdrop()
+
+    // 记录导航栏宽度和当前手指 X 坐标准备拖拽交互
+    var barWidth by remember { mutableFloatStateOf(0f) }
+    var dragOffsetX by remember { mutableStateOf<Float?>(null) }
 
     // 记录当前选中的导航项：
     // 0~2 对应左侧主导航条，3 对应右侧搜索按钮。
@@ -191,7 +232,7 @@ fun AppNavigation() {
 
     // 抽成共享布局参数，保证底栏和滑块按同一套比例计算。
     val horizontalPadding = 24.dp
-    val navBarHeight = 64.dp
+    val navBarHeight = 60.dp
     val mainSearchGap = 16.dp
     val searchButtonWidth = navBarHeight
     // 统一形状：使用 RoundedRectangle 实现 G² 连续圆角（squircle），
@@ -236,9 +277,9 @@ fun AppNavigation() {
                     .weight(1f)
                     .fillMaxHeight()
                     .graphicsLayer {
-                        // 按下时整体轻微放大，模拟液态玻璃被“压出张力”的感觉。
+                        // 按下时整体轻微放大，模拟液态玻璃被“压出张力”的感觉。缩小底栏放大比例。
                         val progress = mainBarProgressAnimation.value
-                        val maxScale = (size.width + 16f.dp.toPx()) / size.width
+                        val maxScale = (size.width + 8f.dp.toPx()) / size.width
                         val scale = lerp(1f, maxScale, progress)
                         scaleX = scale
                         scaleY = scale
@@ -253,7 +294,7 @@ fun AppNavigation() {
                         },
                         layerBlock = {
                             val progress = mainBarProgressAnimation.value
-                            val maxScale = (size.width + 16f.dp.toPx()) / size.width
+                            val maxScale = (size.width + 8f.dp.toPx()) / size.width
                             val scale = lerp(1f, maxScale, progress)
                             scaleX = scale
                             scaleY = scale
@@ -261,15 +302,39 @@ fun AppNavigation() {
                         // 半透明白色表面让底层色块在模糊后保留一点“磨砂感”。
                         onDrawSurface = { drawRect(Color.White.copy(alpha = 0.5f)) },
                     )
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null
-                    ) {}
                     .pointerInput(mainBarAnimationScope) {
                         awaitEachGesture {
-                            awaitFirstDown()
+                            val down = awaitFirstDown()
+                            var currentX = down.position.x
+                            dragOffsetX = currentX
+
+                            val updateSelection = { x: Float ->
+                                val slotWidthPx = if (mainNavItems.isNotEmpty()) size.width.toFloat() / mainNavItems.size.toFloat() else 0f
+                                if (slotWidthPx > 0f) {
+                                    val newIndex = (x / slotWidthPx).toInt().coerceIn(0, mainNavItems.size - 1)
+                                    selectedIndex = newIndex
+                                }
+                            }
+                            // 第一次按下时立即响应切换选中状态
+                            updateSelection(currentX)
+
                             mainBarAnimationScope.launch { mainBarProgressAnimation.animateTo(1f, animationSpec) }
-                            waitForUpOrCancellation()
+                            
+                            var inGesture = true
+                            while (inGesture) {
+                                val event = awaitPointerEvent()
+                                val dragEvent = event.changes.firstOrNull()
+                                if (dragEvent != null && dragEvent.pressed) {
+                                    currentX = dragEvent.position.x
+                                    dragOffsetX = currentX
+                                    updateSelection(currentX) // 拖拽时动态更新选中项
+                                    dragEvent.consume() // 消耗事件防止底层组件响应
+                                } else {
+                                    inGesture = false
+                                }
+                            }
+                            
+                            dragOffsetX = null
                             mainBarAnimationScope.launch { mainBarProgressAnimation.animateTo(0f, animationSpec) }
                         }
                     }
@@ -282,31 +347,11 @@ fun AppNavigation() {
                     mainNavItems.forEachIndexed { index, item ->
                         val isSelected = selectedIndex == index
                         val itemColor = if (isSelected) Color(0xFFFA233B) else Color.DarkGray
-                        val interactionSource = remember { MutableInteractionSource() }
-
-                        LaunchedEffect(interactionSource) {
-                            interactionSource.interactions.collect { interaction ->
-                                when (interaction) {
-                                    is PressInteraction.Press -> {
-                                        mainBarAnimationScope.launch { mainBarProgressAnimation.animateTo(1f, animationSpec) }
-                                    }
-                                    is PressInteraction.Release, is PressInteraction.Cancel -> {
-                                        mainBarAnimationScope.launch { mainBarProgressAnimation.animateTo(0f, animationSpec) }
-                                    }
-                                }
-                            }
-                        }
 
                         Column(
                             modifier = Modifier
                                 .weight(1f) // 使所有导航项等宽，实现 Apple Music 分段滑块风格
-                                .fillMaxHeight()
-                                .clickable(
-                                    interactionSource = interactionSource,
-                                    indication = null // 禁用默认水波纹
-                                ) {
-                                    selectedIndex = index
-                                },
+                                .fillMaxHeight(),
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.Center
                         ) {
@@ -316,7 +361,7 @@ fun AppNavigation() {
                                 tint = itemColor,
                                 modifier = Modifier.size(28.dp)
                             )
-                            Spacer(modifier = Modifier.height(2.dp))
+                            Spacer(modifier = Modifier.height(0.dp))
                             Text(
                                 text = item.title,
                                 color = itemColor,
@@ -352,7 +397,7 @@ fun AppNavigation() {
                     .graphicsLayer {
                         val progress = searchProgressAnimation.value
                         // 搜索按钮更小，所以放大量也略小于主导航条。
-                        val maxScale = (size.width + 8f.dp.toPx()) / size.width
+                        val maxScale = (size.width + 4f.dp.toPx()) / size.width
                         val scale = lerp(1f, maxScale, progress)
                         scaleX = scale
                         scaleY = scale
@@ -367,7 +412,7 @@ fun AppNavigation() {
                         },
                         layerBlock = {
                             val progress = searchProgressAnimation.value
-                            val maxScale = (size.width + 8f.dp.toPx()) / size.width
+                            val maxScale = (size.width + 4f.dp.toPx()) / size.width
                             val scale = lerp(1f, maxScale, progress)
                             scaleX = scale
                             scaleY = scale
@@ -387,7 +432,7 @@ fun AppNavigation() {
                     contentDescription = "搜索",
                     tint = searchColor,
                     // 搜索入口是独立按钮，因此只保留图标，不再额外显示文字。
-                    modifier = Modifier.size(32.dp)
+                    modifier = Modifier.size(26.dp)
                 )
             }
         }
@@ -397,7 +442,9 @@ fun AppNavigation() {
             contentBackdrop = navBarContentBackdrop,
             mainItemCount = mainNavItems.size,
             selectedIndex = selectedIndex,
+            dragOffsetX = dragOffsetX,
             navBarHeight = navBarHeight,
+            mainBarProgress = mainBarProgressAnimation.value,
             horizontalPadding = horizontalPadding,
             mainSearchGap = mainSearchGap,
             searchButtonWidth = searchButtonWidth,
