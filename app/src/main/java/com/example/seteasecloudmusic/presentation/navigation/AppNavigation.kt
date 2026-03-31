@@ -168,8 +168,8 @@ fun GlassSlider(
                         shape = { RoundedRectangle(innerCornerRadius) },
                         effects = {
                             lens(
-                                refractionHeight = 12f.dp.toPx(),
-                                refractionAmount = 16f.dp.toPx(),
+                                refractionHeight = 6f.dp.toPx(),
+                                refractionAmount = 12f.dp.toPx(),
                                 chromaticAberration = true
                             )
                         }
@@ -353,15 +353,14 @@ fun AppNavigation() {
                                 .weight(1f) // 使所有导航项等宽，实现 Apple Music 分段滑块风格
                                 .fillMaxHeight(),
                             horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center
+                            verticalArrangement = Arrangement.spacedBy(1.dp, Alignment.CenterVertically)
                         ) {
                             Icon(
                                 imageVector = item.icon,
                                 contentDescription = item.title,
                                 tint = itemColor,
-                                modifier = Modifier.size(28.dp)
+                                modifier = Modifier.size(26.dp)
                             )
-                            Spacer(modifier = Modifier.height(0.dp))
                             Text(
                                 text = item.title,
                                 color = itemColor,
