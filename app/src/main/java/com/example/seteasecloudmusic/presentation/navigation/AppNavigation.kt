@@ -15,6 +15,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.PressInteraction
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.text.BasicTextField
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
@@ -255,184 +256,257 @@ fun AppNavigation() {
         }
 
         // --- 顶层悬浮导航栏及独立搜索按钮 ---
-        Row(
+        BoxWithConstraints(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                // 让滑块可以采样到底栏和图标内容，而不仅是背景层。
-                .layerBackdrop(navBarContentBackdrop)
-                // 1. 先避开系统导航栏（小白条）
+                // 先避开系统导航栏（小白条）
                 .windowInsetsPadding(WindowInsets.navigationBars)
-                // 2. 手动添加上下左右的间距，左右缩进，底部悬浮
+                // 手动添加上下左右的间距，左右缩进，底部悬浮
                 .padding(horizontal = horizontalPadding, vertical = 24.dp)
                 .fillMaxWidth()
                 // 保持 Apple Music 的视觉高度
-                .height(navBarHeight),
-            // 使用 spacedBy 在主导航条和搜索小圆之间留出间距
-            horizontalArrangement = Arrangement.spacedBy(mainSearchGap)
+                .height(navBarHeight)
         ) {
-            
-            // ============ 左侧主导航条 (包含主页、电台、我的) ============
-            Box(
+            val totalWidth = maxWidth
+            val collapsedWidth = navBarHeight
+            val expandedWidth = totalWidth - collapsedWidth - mainSearchGap
+
+            val isSearchExpanded = selectedIndex == 3
+
+            val leftWidth by animateDpAsState(
+                targetValue = if (isSearchExpanded) collapsedWidth else expandedWidth,
+                animationSpec = spring(stiffness = 500f, dampingRatio = 0.8f),
+                label = "leftWidth"
+            )
+            val rightWidth by animateDpAsState(
+                targetValue = if (isSearchExpanded) expandedWidth else collapsedWidth,
+                animationSpec = spring(stiffness = 500f, dampingRatio = 0.8f),
+                label = "rightWidth"
+            )
+
+            Row(
                 modifier = Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-                    .graphicsLayer {
-                        // 按下时整体轻微放大，模拟液态玻璃被“压出张力”的感觉。缩小底栏放大比例。
-                        val progress = mainBarProgressAnimation.value
-                        val maxScale = (size.width + 8f.dp.toPx()) / size.width
-                        val scale = lerp(1f, maxScale, progress)
-                        scaleX = scale
-                        scaleY = scale
-                    }
-                    .drawBackdrop(
-                        backdrop = backdrop,
-                        shape = { RoundedRectangle(cornerRadius) },
-                        effects = {
-                            vibrancy()
-                            blur(2f.dp.toPx())
-                            lens(16f.dp.toPx(), 32f.dp.toPx())
-                        },
-                        layerBlock = {
+                    .fillMaxSize()
+                    .layerBackdrop(navBarContentBackdrop),
+                horizontalArrangement = Arrangement.spacedBy(mainSearchGap)
+            ) {
+            
+                // ============ 左侧主导航条 (包含主页、电台、我的) ============
+                Box(
+                    modifier = Modifier
+                        .width(leftWidth)
+                        .fillMaxHeight()
+                        .graphicsLayer {
+                            // 按下时整体轻微放大，模拟液态玻璃被“压出张力”的感觉。缩小底栏放大比例。
                             val progress = mainBarProgressAnimation.value
                             val maxScale = (size.width + 8f.dp.toPx()) / size.width
                             val scale = lerp(1f, maxScale, progress)
                             scaleX = scale
                             scaleY = scale
-                        },
-                        // 半透明白色表面让底层色块在模糊后保留一点“磨砂感”。
-                        onDrawSurface = { drawRect(Color.White.copy(alpha = 0.5f)) },
-                    )
-                    .pointerInput(mainBarAnimationScope) {
-                        awaitEachGesture {
-                            val down = awaitFirstDown()
-                            var currentX = down.position.x
-                            dragOffsetX = currentX
-
-                            val updateSelection = { x: Float ->
-                                val slotWidthPx = if (mainNavItems.isNotEmpty()) size.width.toFloat() / mainNavItems.size.toFloat() else 0f
-                                if (slotWidthPx > 0f) {
-                                    val newIndex = (x / slotWidthPx).toInt().coerceIn(0, mainNavItems.size - 1)
-                                    selectedIndex = newIndex
-                                }
-                            }
-                            // 第一次按下时立即响应切换选中状态
-                            updateSelection(currentX)
-
-                            mainBarAnimationScope.launch { mainBarProgressAnimation.animateTo(1f, animationSpec) }
-                            
-                            var inGesture = true
-                            while (inGesture) {
-                                val event = awaitPointerEvent()
-                                val dragEvent = event.changes.firstOrNull()
-                                if (dragEvent != null && dragEvent.pressed) {
-                                    currentX = dragEvent.position.x
-                                    dragOffsetX = currentX
-                                    updateSelection(currentX) // 拖拽时动态更新选中项
-                                    dragEvent.consume() // 消耗事件防止底层组件响应
-                                } else {
-                                    inGesture = false
-                                }
-                            }
-                            
-                            dragOffsetX = null
-                            mainBarAnimationScope.launch { mainBarProgressAnimation.animateTo(0f, animationSpec) }
                         }
-                    }
-            ) {
-                // 主导航栏内部负责均分三个一级入口。
-                Row(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    mainNavItems.forEachIndexed { index, item ->
-                        val isSelected = selectedIndex == index
-                        val itemColor = if (isSelected) Color(0xFFFA233B) else Color.DarkGray
-
-                        Column(
-                            modifier = Modifier
-                                .weight(1f) // 使所有导航项等宽，实现 Apple Music 分段滑块风格
-                                .fillMaxHeight(),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(1.dp, Alignment.CenterVertically)
+                        .drawBackdrop(
+                            backdrop = backdrop,
+                            shape = { RoundedRectangle(cornerRadius) },
+                            effects = {
+                                vibrancy()
+                                blur(2f.dp.toPx())
+                                lens(16f.dp.toPx(), 32f.dp.toPx())
+                            },
+                            layerBlock = {
+                                val progress = mainBarProgressAnimation.value
+                                val maxScale = (size.width + 8f.dp.toPx()) / size.width
+                                val scale = lerp(1f, maxScale, progress)
+                                scaleX = scale
+                                scaleY = scale
+                            },
+                            // 半透明白色表面让底层色块在模糊后保留一点“磨砂感”。
+                            onDrawSurface = { drawRect(Color.White.copy(alpha = 0.5f)) },
+                        )
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
                         ) {
-                            Icon(
-                                imageVector = item.icon,
-                                contentDescription = item.title,
-                                tint = itemColor,
-                                modifier = Modifier.size(26.dp)
-                            )
-                            Text(
-                                text = item.title,
-                                color = itemColor,
-                                style = MaterialTheme.typography.labelSmall
-                            )
+                            if (isSearchExpanded) {
+                                selectedIndex = 0
+                            }
+                        }
+                        .pointerInput(mainBarAnimationScope) {
+                            if (isSearchExpanded) return@pointerInput // 当搜索展开时，直接通过 clickable 重置，不响应滑动切换
+                            awaitEachGesture {
+                                val down = awaitFirstDown()
+                                var currentX = down.position.x
+                                dragOffsetX = currentX
+
+                                val updateSelection = { x: Float ->
+                                    val slotWidthPx = if (mainNavItems.isNotEmpty()) size.width.toFloat() / mainNavItems.size.toFloat() else 0f
+                                    if (slotWidthPx > 0f) {
+                                        val newIndex = (x / slotWidthPx).toInt().coerceIn(0, mainNavItems.size - 1)
+                                        selectedIndex = newIndex
+                                    }
+                                }
+                                // 第一次按下时立即响应切换选中状态
+                                updateSelection(currentX)
+
+                                mainBarAnimationScope.launch { mainBarProgressAnimation.animateTo(1f, animationSpec) }
+                                
+                                var inGesture = true
+                                while (inGesture) {
+                                    val event = awaitPointerEvent()
+                                    val dragEvent = event.changes.firstOrNull()
+                                    if (dragEvent != null && dragEvent.pressed) {
+                                        currentX = dragEvent.position.x
+                                        dragOffsetX = currentX
+                                        updateSelection(currentX) // 拖拽时动态更新选中项
+                                        dragEvent.consume() // 消耗事件防止底层组件响应
+                                    } else {
+                                        inGesture = false
+                                    }
+                                }
+                                
+                                dragOffsetX = null
+                                mainBarAnimationScope.launch { mainBarProgressAnimation.animateTo(0f, animationSpec) }
+                            }
+                        }
+                ) {
+                    // 主导航栏内部负责均分三个一级入口。
+                    // 容器缩小时（圆按钮）不显示导航图标，避免挤压
+                    if (leftWidth > collapsedWidth * 1.5f) {
+                        Row(
+                            modifier = Modifier.fillMaxSize(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            mainNavItems.forEachIndexed { index, item ->
+                                val isSelected = selectedIndex == index
+                                val itemColor = if (isSelected) Color(0xFFFA233B) else Color.DarkGray
+
+                                Column(
+                                    modifier = Modifier
+                                        .weight(1f) // 使所有导航项等宽，实现 Apple Music 分段滑块风格
+                                        .fillMaxHeight(),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(1.dp, Alignment.CenterVertically)
+                                ) {
+                                    Icon(
+                                        imageVector = item.icon,
+                                        contentDescription = item.title,
+                                        tint = itemColor,
+                                        modifier = Modifier.size(26.dp)
+                                    )
+                                    Text(
+                                        text = item.title,
+                                        color = itemColor,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        maxLines = 1
+                                    )
+                                }
+                            }
+                        }
+                    } else {
+                        // 缩小成圆形按钮时显示返回或主页图标
+                        Icon(
+                            imageVector = Icons.Filled.Home,
+                            contentDescription = "返回主导航",
+                            tint = Color.DarkGray,
+                            modifier = Modifier.align(Alignment.Center).size(26.dp)
+                        )
+                    }
+                }
+
+                // ============ 右侧独立的搜索按钮 / 搜索栏 ============
+                val searchColor = if (isSearchExpanded) Color(0xFFFA233B) else Color.DarkGray
+                val searchInteractionSource = remember { MutableInteractionSource() }
+                
+                LaunchedEffect(searchInteractionSource) {
+                    searchInteractionSource.interactions.collect { interaction ->
+                        when (interaction) {
+                            is PressInteraction.Press -> {
+                                searchAnimationScope.launch { searchProgressAnimation.animateTo(1f, animationSpec) }
+                            }
+                            is PressInteraction.Release, is PressInteraction.Cancel -> {
+                                searchAnimationScope.launch { searchProgressAnimation.animateTo(0f, animationSpec) }
+                            }
                         }
                     }
                 }
-            }
 
-            // ============ 右侧独立的搜索按钮 ============
-            val isSearchSelected = selectedIndex == 3
-            val searchColor = if (isSearchSelected) Color(0xFFFA233B) else Color.DarkGray
-            val searchInteractionSource = remember { MutableInteractionSource() }
-            
-            LaunchedEffect(searchInteractionSource) {
-                searchInteractionSource.interactions.collect { interaction ->
-                    when (interaction) {
-                        is PressInteraction.Press -> {
-                            searchAnimationScope.launch { searchProgressAnimation.animateTo(1f, animationSpec) }
-                        }
-                        is PressInteraction.Release, is PressInteraction.Cancel -> {
-                            searchAnimationScope.launch { searchProgressAnimation.animateTo(0f, animationSpec) }
-                        }
-                    }
-                }
-            }
-
-            Box(
-                modifier = Modifier
-                    .fillMaxHeight() // 高度跟随导航栏，视觉上保持独立悬浮。
-                    .aspectRatio(1f) // 让容器保持 1:1，从而形成正圆按钮。
-                    .graphicsLayer {
-                        val progress = searchProgressAnimation.value
-                        // 搜索按钮更小，所以放大量也略小于主导航条。
-                        val maxScale = (size.width + 4f.dp.toPx()) / size.width
-                        val scale = lerp(1f, maxScale, progress)
-                        scaleX = scale
-                        scaleY = scale
-                    }
-                    .drawBackdrop(
-                        backdrop = backdrop,
-                        shape = { RoundedRectangle(cornerRadius) },
-                        effects = {
-                            vibrancy()
-                            blur(2f.dp.toPx())
-                            lens(16f.dp.toPx(), 32f.dp.toPx())
-                        },
-                        layerBlock = {
+                Box(
+                    modifier = Modifier
+                        .width(rightWidth)
+                        .fillMaxHeight() // 高度跟随导航栏，视觉上保持独立悬浮。
+                        .graphicsLayer {
                             val progress = searchProgressAnimation.value
+                            // 搜索按钮更小，所以放大量也略小于主导航条。
                             val maxScale = (size.width + 4f.dp.toPx()) / size.width
                             val scale = lerp(1f, maxScale, progress)
                             scaleX = scale
                             scaleY = scale
+                        }
+                        .drawBackdrop(
+                            backdrop = backdrop,
+                            shape = { RoundedRectangle(cornerRadius) },
+                            effects = {
+                                vibrancy()
+                                blur(2f.dp.toPx())
+                                lens(16f.dp.toPx(), 32f.dp.toPx())
+                            },
+                            layerBlock = {
+                                val progress = searchProgressAnimation.value
+                                val maxScale = (size.width + 4f.dp.toPx()) / size.width
+                                val scale = lerp(1f, maxScale, progress)
+                                scaleX = scale
+                                scaleY = scale
+                            },
+                            onDrawSurface = { drawRect(Color.White.copy(alpha = 0.5f)) },
+                        )
+                        .clickable(
+                            interactionSource = searchInteractionSource,
+                            indication = null
+                        ) {
+                            if (!isSearchExpanded) {
+                                selectedIndex = 3
+                            }
                         },
-                        onDrawSurface = { drawRect(Color.White.copy(alpha = 0.5f)) },
-                    )
-                    .clickable(
-                        interactionSource = searchInteractionSource,
-                        indication = null
-                    ) {
-                        selectedIndex = 3
-                    },
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Search,
-                    contentDescription = "搜索",
-                    tint = searchColor,
-                    // 搜索入口是独立按钮，因此只保留图标，不再额外显示文字。
-                    modifier = Modifier.size(26.dp)
-                )
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (isSearchExpanded && rightWidth > collapsedWidth * 1.5f) {
+                        // 展开状态下的搜索框内容
+                        BasicTextField(
+                            value = "", // 这里可以接入真正的 ViewModel 状态
+                            onValueChange = {},
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 24.dp),
+                            singleLine = true,
+                            textStyle = MaterialTheme.typography.bodyLarge.copy(color = Color.Black),
+                            decorationBox = { innerTextField ->
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Search,
+                                        contentDescription = null,
+                                        tint = Color.DarkGray,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Box(modifier = Modifier.weight(1f)) {
+                                        Text("搜你想听的", color = Color.Gray)
+                                        innerTextField()
+                                    }
+                                }
+                            }
+                        )
+                    } else {
+                        // 收起状态下的搜索图标
+                        Icon(
+                            imageVector = Icons.Filled.Search,
+                            contentDescription = "搜索",
+                            tint = searchColor,
+                            // 搜索入口是独立按钮，因此只保留图标，不再额外显示文字。
+                            modifier = Modifier.size(26.dp)
+                        )
+                    }
+                }
             }
         }
 
