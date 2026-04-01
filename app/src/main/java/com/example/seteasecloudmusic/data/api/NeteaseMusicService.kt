@@ -1,6 +1,7 @@
 package com.example.seteasecloudmusic.data.api
 
 import com.example.seteasecloudmusic.data.model.SearchResultResponse
+import com.example.seteasecloudmusic.data.model.SearchSuggestResponse
 import com.example.seteasecloudmusic.data.model.SongResponse
 import retrofit2.http.GET
 import retrofit2.http.Query
@@ -36,15 +37,13 @@ interface NeteaseMusicService {
     ): SearchResultResponse
 
     /**
-     * 使用基础 search 接口获取搜索结果。
+     * 获取搜索建议（包含单曲、歌手、歌单）。
      */
-    @GET("search")
-    suspend fun searchSongsLite(
+    @GET("search/suggest")
+    suspend fun getSearchSuggestions(
         @Query("keywords") keywords: String,
-        @Query("limit") limit: Int = 30,
-        @Query("offset") offset: Int = 0,
-        @Query("type") type: Int = SearchType.SONG.value
-    ): SearchResultResponse
+        @Query("type") type: String? = null
+    ): SearchSuggestResponse
 }
 
 /**

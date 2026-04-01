@@ -2,9 +2,15 @@ package com.example.seteasecloudmusic.data.repository
 
 import com.example.seteasecloudmusic.data.api.NeteaseMusicService
 import com.example.seteasecloudmusic.data.model.SearchSongItemResponse
+import com.example.seteasecloudmusic.data.model.SearchSuggestArtistResponse
+import com.example.seteasecloudmusic.data.model.SearchSuggestPlaylistResponse
+import com.example.seteasecloudmusic.data.model.SearchSuggestSongResponse
 import com.example.seteasecloudmusic.domain.model.Album
 import com.example.seteasecloudmusic.domain.model.Artist
+import com.example.seteasecloudmusic.domain.model.ArtistSuggestion
 import com.example.seteasecloudmusic.domain.model.AudioQuality
+import com.example.seteasecloudmusic.domain.model.PlaylistSuggestion
+import com.example.seteasecloudmusic.domain.model.SearchSuggestions
 import com.example.seteasecloudmusic.domain.model.Track
 import com.example.seteasecloudmusic.domain.repository.MusicRepository
 import kotlinx.coroutines.Dispatchers
@@ -65,6 +71,82 @@ class MusicRepositoryImpl(
         } catch (e: Exception) {
             Result.failure(e)
         }
+    }
+
+    override suspend fun getSearchSuggestions(
+        query: String,
+        type: String?
+    ): Result<SearchSuggestions> = withContext(Dispatchers.IO) {
+        try {
+            val response = musicService.getSearchSuggestions(query, type)
+            if (response.code == 200) {
+                val result = response.result
+                val suggestions = SearchSuggestions(
+                    songs = result?.songs?.map { mapToDomainTrackFromSuggest(it) } ?: emptyList(),
+                    artists = result?.artists?.map { mapToArtistSuggestion(it) } ?: emptyList(),
+                    playlists = result?.playlists?.map { mapToPlaylistSuggestion(it) } ?: emptyList(),
+                    allMatch = result?.allMatch?.map { it.keyword ?: "" }?.filter { it.isNotEmpty() } ?: emptyList()
+                )
+                Result.success(suggestions)
+            } else {
+                Result.failure(Exception("API Error with code: ${response.code}"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * 内部映射函数：
+     * 把搜索建议中的歌曲响应转换成 domain 层的 Track。
+     */
+    private fun mapToDomainTrackFromSuggest(song: SearchSuggestSongResponse): Track {
+        return Track(
+            id = song.id,
+            title = song.name ?: "",
+            durationMs = song.duration,
+            artists = song.artists?.map { artist ->
+                Artist(
+                    id = artist.id ?: 0L,
+                    name = artist.name ?: "未知歌手",
+                    coverUrl = null
+                )
+            } ?: emptyList(),
+            album = Album(
+                id = song.album?.id ?: 0L,
+                title = song.album?.name ?: "未知专辑",
+                coverUrl = song.album?.coverUrl
+            ),
+            coverUrl = song.album?.coverUrl,
+            qualityTags = emptyList(), // 搜索建议接口不包含音质信息
+            playableUrl = null,
+            isPlayable = true
+        )
+    }
+
+    /**
+     * 内部映射函数：
+     * 把搜索建议中的歌手响应转换成 domain 层的 ArtistSuggestion。
+     */
+    private fun mapToArtistSuggestion(artist: SearchSuggestArtistResponse): ArtistSuggestion {
+        return ArtistSuggestion(
+            id = artist.id,
+            name = artist.name ?: "未知歌手",
+            coverUrl = artist.coverUrl
+        )
+    }
+
+    /**
+     * 内部映射函数：
+     * 把搜索建议中的歌单响应转换成 domain 层的 PlaylistSuggestion。
+     */
+    private fun mapToPlaylistSuggestion(playlist: SearchSuggestPlaylistResponse): PlaylistSuggestion {
+        return PlaylistSuggestion(
+            id = playlist.id,
+            name = playlist.name ?: "未知歌单",
+            coverUrl = playlist.coverUrl,
+            trackCount = playlist.trackCount ?: 0
+        )
     }
 
     /**

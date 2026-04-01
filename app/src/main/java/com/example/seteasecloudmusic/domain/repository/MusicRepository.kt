@@ -1,5 +1,6 @@
 package com.example.seteasecloudmusic.domain.repository
 
+import com.example.seteasecloudmusic.domain.model.SearchSuggestions
 import com.example.seteasecloudmusic.domain.model.Track
 
 interface MusicRepository {
@@ -15,4 +16,10 @@ interface MusicRepository {
         trackId: Long,
         level: String = "hires"
     ): Result<String>
+
+    //获取搜索建议，返回单曲、歌手、歌单的综合建议。
+    suspend fun getSearchSuggestions(
+        query: String,
+        type: String? = null
+    ): Result<SearchSuggestions>
 }

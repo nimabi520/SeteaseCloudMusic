@@ -219,6 +219,9 @@ fun AppNavigation() {
     // 记录导航栏宽度和当前手指 X 坐标准备拖拽交互
     var barWidth by remember { mutableFloatStateOf(0f) }
     var dragOffsetX by remember { mutableStateOf<Float?>(null) }
+    
+    // 搜索框的输入内容状态
+    var searchText by remember { mutableStateOf("") }
 
     // 记录当前选中的导航项：
     // 0~2 对应左侧主导航条，3 对应右侧搜索按钮。
@@ -471,8 +474,8 @@ fun AppNavigation() {
                     if (isSearchExpanded && rightWidth > collapsedWidth * 1.5f) {
                         // 展开状态下的搜索框内容
                         BasicTextField(
-                            value = "", // 这里可以接入真正的 ViewModel 状态
-                            onValueChange = {},
+                            value = searchText,
+                            onValueChange = { searchText = it },
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(horizontal = 24.dp),
@@ -490,7 +493,9 @@ fun AppNavigation() {
                                         modifier = Modifier.size(20.dp)
                                     )
                                     Box(modifier = Modifier.weight(1f)) {
-                                        Text("搜你想听的", color = Color.Gray)
+                                        if (searchText.isEmpty()) {
+                                            Text("搜你想听的", color = Color.Gray)
+                                        }
                                         innerTextField()
                                     }
                                 }
