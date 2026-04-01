@@ -4,6 +4,7 @@ import android.content.Context
 import okhttp3.Interceptor
 import okhttp3.Request
 import okhttp3.Response
+import org.json.JSONObject
 
 /**
  * AuthInterceptor - 认证拦截器
@@ -112,22 +113,48 @@ class AuthInterceptor(private val context: Context) : Interceptor {
      * 下次请求时需要带上这个 Cookie，所以要存起来。
      */
     private fun saveCookiesFromResponse(response: Response) {
-        // 获取响应头中的 "Set-Cookie" 字段
-        // headers() 返回所有响应头
-        // values("Set-Cookie") 返回所有 Set-Cookie 的值（可能有多个）
-        val cookies = response.headers.values("Set-Cookie")
-
-        // 如果没有新 Cookie，直接返回
-        if (cookies.isEmpty()) {
+        // 优先使用响应头里的 Set-Cookie
+        val headerCookie = extractCookieFromHeaders(response)
+        if (!headerCookie.isNullOrBlank()) {
+            saveCookie(headerCookie)
             return
         }
 
-        // 把多个 Cookie 合成一个字符串
-        // 例如：["MUSIC_U=abc", "__csrf=123"] → "MUSIC_U=abc; __csrf=123"
-        val cookieString = cookies.joinToString("; ")
+        // 某些登录接口（例如二维码登录）会把 cookie 放在响应体里
+        val bodyCookie = extractCookieFromBody(response)
+        if (!bodyCookie.isNullOrBlank()) {
+            saveCookie(bodyCookie)
+        }
+    }
 
-        // 保存到 SharedPreferences
-        saveCookie(cookieString)
+    private fun extractCookieFromHeaders(response: Response): String? {
+        val cookiePairs = response.headers.values("Set-Cookie")
+            .map { it.substringBefore(";").trim() }
+            .filter { it.contains("=") }
+
+        if (cookiePairs.isEmpty()) {
+            return null
+        }
+
+        return cookiePairs.joinToString("; ")
+    }
+
+    private fun extractCookieFromBody(response: Response): String? {
+        val path = response.request.url.encodedPath
+        if (!path.startsWith("/login/")) {
+            return null
+        }
+
+        return runCatching {
+            val body = response.peekBody(1024L * 1024L).string()
+            if (body.isBlank()) {
+                return null
+            }
+
+            JSONObject(body)
+                .optString("cookie")
+                .takeIf { it.isNotBlank() }
+        }.getOrNull()
     }
 
     // ==================== Cookie 存取方法 ====================
