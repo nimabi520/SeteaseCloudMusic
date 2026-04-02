@@ -2,12 +2,12 @@ package com.example.seteasecloudmusic.presentation.screens
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.seteasecloudmusic.domain.usecase.SearchMusicUseCase
 import com.example.seteasecloudmusic.domain.model.Track
+import com.example.seteasecloudmusic.domain.usecase.SearchMusicUseCase
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.launch
 
 data class SearchUiState(
@@ -17,24 +17,27 @@ data class SearchUiState(
     val errorMessage: String? = null
 )
 
-class SearchViewModel(private val searchMusicUseCase: SearchMusicUseCase) : ViewModel {
+class SearchViewModel(private val searchMusicUseCase: SearchMusicUseCase) : ViewModel() {
     private val _uiState = MutableStateFlow(SearchUiState())
     val uiState = _uiState.asStateFlow()
     private var lastSubmittedQuery: String? = null
     private var searchJob: Job? = null
 
     fun onQueryChanged(newQuery: String) {
-        if (newQuery.isBlank()){
-            current.copy(
-                query = newQuery,
-                tracks = emptyList(),
-                errorMessage = null
-                hasSearched = false
-            )
-        } else {
-            current.copy(
-                query = newQuery,
-                errorMessage = null)
+        _uiState.update { state ->
+            if (newQuery.isBlank()) {
+                state.copy(
+                    query = newQuery,
+                    tracks = emptyList(),
+                    errorMessage = null,
+                    isLoading = false
+                )
+            } else {
+                state.copy(
+                    query = newQuery,
+                    errorMessage = null
+                )
+            }
         }
     }
 
@@ -43,7 +46,7 @@ class SearchViewModel(private val searchMusicUseCase: SearchMusicUseCase) : View
         if (query.isEmpty()) {
             return
         }
-        lastSubmittedQuety = query
+        lastSubmittedQuery = query
         search(query)
     }
 
