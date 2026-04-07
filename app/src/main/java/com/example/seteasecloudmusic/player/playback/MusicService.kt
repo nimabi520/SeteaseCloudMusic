@@ -26,19 +26,22 @@ class MusicService : MediaSessionService() {
     override fun onCreate() {
         super.onCreate()
 
-        // 告诉系统：这是“音乐播放”用途
+        // 1. 定义音频属性
         val audioAttributes = AudioAttributes.Builder()
             .setUsage(C.USAGE_MEDIA)
             .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
             .build()
 
-        // 创建 ExoPlayer
-        player = ExoPlayer.Builder(this)
+        // 2. 先创建一个局部非空变量 exoPlayer
+        val exoPlayer = ExoPlayer.Builder(this)
             .setAudioAttributes(audioAttributes, true)
-            .setHandleAudioBecomingNoisy(true) // 耳机拔出时自动处理
+            .setHandleAudioBecomingNoisy(true) // 耳机拔出时自动暂停
             .build()
 
-        // 点击通知栏/锁屏控制时，跳回主界面
+        // 3. 将局部变量赋值给类成员变量 player
+        this.player = exoPlayer
+
+        // 4. 设置点击通知栏时的跳转意图
         val sessionActivity = PendingIntent.getActivity(
             this,
             0,
@@ -46,8 +49,8 @@ class MusicService : MediaSessionService() {
             PendingIntent.FLAG_IMMUTABLE
         )
 
-        // 创建 MediaSession，把播放器暴露给系统
-        mediaSession = MediaSession.Builder(this, player!!)
+        // 5. 使用局部变量 exoPlayer 创建 MediaSession，无需使用 !!
+        mediaSession = MediaSession.Builder(this, exoPlayer)
             .setSessionActivity(sessionActivity)
             .build()
     }
