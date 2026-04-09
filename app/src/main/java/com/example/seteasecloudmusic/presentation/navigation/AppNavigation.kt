@@ -18,10 +18,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.BasicTextField
 
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Radio
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -31,6 +35,9 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -216,6 +223,7 @@ fun AppNavigation() {
             getSearchSuggestionsUseCase = getSearchSuggestionsUseCase
         )
     }
+    val searchUiState by searchViewModel.uiState.collectAsState()
 
     // 背景底色会参与毛玻璃采样，决定整个导航栏的基础明度。
     val backgroundColor = Color.White
@@ -240,9 +248,6 @@ fun AppNavigation() {
     // 记录导航栏宽度和当前手指 X 坐标准备拖拽交互
     var barWidth by remember { mutableFloatStateOf(0f) }
     var dragOffsetX by remember { mutableStateOf<Float?>(null) }
-    
-    // 搜索框的输入内容状态
-    var searchText by remember { mutableStateOf("") }
 
     // 记录当前选中的导航项：
     // 0~2 对应左侧主导航条，3 对应右侧搜索按钮。
@@ -458,89 +463,166 @@ fun AppNavigation() {
                         }
                     }
                 }
-
-                Box(
-                    modifier = Modifier
-                        .width(rightWidth)
-                        .fillMaxHeight() // 高度跟随导航栏，视觉上保持独立悬浮。
-                        .graphicsLayer {
-                            val progress = searchProgressAnimation.value
-                            // 搜索按钮更小，所以放大量也略小于主导航条。
-                            val maxScale = (size.width + 4f.dp.toPx()) / size.width
-                            val scale = lerp(1f, maxScale, progress)
-                            scaleX = scale
-                            scaleY = scale
+                if (isSearchExpanded && rightWidth > collapsedWidth * 1.5f) {
+                    Row(
+                        modifier = Modifier
+                            .width(rightWidth)
+                            .fillMaxHeight(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .graphicsLayer {
+                                    val progress = searchProgressAnimation.value
+                                    val maxScale = (size.width + 4f.dp.toPx()) / size.width
+                                    val scale = lerp(1f, maxScale, progress)
+                                    scaleX = scale
+                                    scaleY = scale
+                                }
+                                .drawBackdrop(
+                                    backdrop = backdrop,
+                                    shape = { RoundedRectangle(cornerRadius) },
+                                    effects = {
+                                        vibrancy()
+                                        blur(2f.dp.toPx())
+                                        lens(16f.dp.toPx(), 32f.dp.toPx())
+                                    },
+                                    onDrawSurface = { drawRect(Color.White.copy(alpha = 0.56f)) }
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            BasicTextField(
+                                value = searchUiState.query,
+                                onValueChange = { searchViewModel.onQueryChanged(it) },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 18.dp)
+                                    .onKeyEvent { keyEvent ->
+                                        if (keyEvent.key == Key.Enter) {
+                                            searchViewModel.onSearchSubmit()
+                                            true
+                                        } else {
+                                            false
+                                        }
+                                    },
+                                singleLine = true,
+                                textStyle = MaterialTheme.typography.bodyLarge.copy(color = Color.Black),
+                                decorationBox = { innerTextField ->
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Filled.Search,
+                                            contentDescription = null,
+                                            tint = Color.DarkGray,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                        Box(modifier = Modifier.weight(1f)) {
+                                            if (searchUiState.query.isEmpty()) {
+                                                Text("搜你想听的", color = Color.Gray)
+                                            }
+                                            innerTextField()
+                                        }
+                                        if (searchUiState.query.isNotEmpty()) {
+                                            Icon(
+                                                imageVector = Icons.Filled.Clear,
+                                                contentDescription = "清空搜索",
+                                                tint = Color.Gray,
+                                                modifier = Modifier
+                                                    .size(18.dp)
+                                                    .clickable { searchViewModel.onClearQuery() }
+                                            )
+                                        }
+                                    }
+                                }
+                            )
                         }
-                        .drawBackdrop(
-                            backdrop = backdrop,
-                            shape = { RoundedRectangle(cornerRadius) },
-                            effects = {
-                                vibrancy()
-                                blur(2f.dp.toPx())
-                                lens(16f.dp.toPx(), 32f.dp.toPx())
-                            },
-                            layerBlock = {
+
+                        Box(
+                            modifier = Modifier
+                                .size(navBarHeight)
+                                .drawBackdrop(
+                                    backdrop = backdrop,
+                                    shape = { RoundedRectangle(cornerRadius) },
+                                    effects = {
+                                        vibrancy()
+                                        blur(2f.dp.toPx())
+                                        lens(16f.dp.toPx(), 32f.dp.toPx())
+                                    },
+                                    onDrawSurface = { drawRect(Color.White.copy(alpha = 0.56f)) }
+                                )
+                                .clickable(
+                                    interactionSource = searchInteractionSource,
+                                    indication = null
+                                ) {
+                                    searchViewModel.onClearQuery()
+                                    selectedIndex = 0
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Close,
+                                contentDescription = "关闭搜索",
+                                tint = Color.Black,
+                                modifier = Modifier.size(26.dp)
+                            )
+                        }
+                    }
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .width(rightWidth)
+                            .fillMaxHeight()
+                            .graphicsLayer {
                                 val progress = searchProgressAnimation.value
                                 val maxScale = (size.width + 4f.dp.toPx()) / size.width
                                 val scale = lerp(1f, maxScale, progress)
                                 scaleX = scale
                                 scaleY = scale
-                            },
-                            onDrawSurface = { drawRect(Color.White.copy(alpha = 0.5f)) },
-                        )
-                        .clickable(
-                            interactionSource = searchInteractionSource,
-                            indication = null
-                        ) {
-                            if (!isSearchExpanded) {
-                                selectedIndex = 3
                             }
-                        },
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (isSearchExpanded && rightWidth > collapsedWidth * 1.5f) {
-                        // 展开状态下的搜索框内容
-                        BasicTextField(
-                            value = searchText,
-                            onValueChange = { searchText = it },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 24.dp),
-                            singleLine = true,
-                            textStyle = MaterialTheme.typography.bodyLarge.copy(color = Color.Black),
-                            decorationBox = { innerTextField ->
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Filled.Search,
-                                        contentDescription = null,
-                                        tint = Color.DarkGray,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                    Box(modifier = Modifier.weight(1f)) {
-                                        if (searchText.isEmpty()) {
-                                            Text("搜你想听的", color = Color.Gray)
-                                        }
-                                        innerTextField()
-                                    }
+                            .drawBackdrop(
+                                backdrop = backdrop,
+                                shape = { RoundedRectangle(cornerRadius) },
+                                effects = {
+                                    vibrancy()
+                                    blur(2f.dp.toPx())
+                                    lens(16f.dp.toPx(), 32f.dp.toPx())
+                                },
+                                onDrawSurface = { drawRect(Color.White.copy(alpha = 0.56f)) }
+                            )
+                            .clickable(
+                                interactionSource = searchInteractionSource,
+                                indication = null
+                            ) {
+                                if (!isSearchExpanded) {
+                                    selectedIndex = 3
                                 }
-                            }
-                        )
-                    } else {
-                        // 收起状态下的搜索图标
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
                         Icon(
                             imageVector = Icons.Filled.Search,
                             contentDescription = "搜索",
                             tint = searchColor,
-                            // 搜索入口是独立按钮，因此只保留图标，不再额外显示文字。
                             modifier = Modifier.size(26.dp)
                         )
                     }
                 }
             }
         }
+
+        SearchMiniPlayerBar(
+            backdrop = backdrop,
+            cornerRadius = cornerRadius,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .windowInsetsPadding(WindowInsets.navigationBars)
+                .padding(start = 24.dp, end = 24.dp, bottom = 100.dp)
+        )
 
         GlassSlider(
             backdrop = backdrop,
@@ -559,6 +641,59 @@ fun AppNavigation() {
                 .windowInsetsPadding(WindowInsets.navigationBars)
                 .padding(bottom = 24.dp) // 24dp(底部导航栏间距) + 64dp(导航栏高度) + 16dp(悬浮间距)
         )
+    }
+}
+
+/**
+ * 搜索模式底部迷你播放条。
+ */
+@Composable
+private fun SearchMiniPlayerBar(
+    backdrop: Backdrop,
+    cornerRadius: androidx.compose.ui.unit.Dp,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(54.dp)
+            .drawBackdrop(
+                backdrop = backdrop,
+                shape = { RoundedRectangle(cornerRadius) },
+                effects = {
+                    vibrancy()
+                    blur(2f.dp.toPx())
+                    lens(16f.dp.toPx(), 32f.dp.toPx())
+                },
+                onDrawSurface = { drawRect(Color.White.copy(alpha = 0.56f)) }
+            )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "未在播放",
+                color = Color.Black,
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.weight(1f)
+            )
+            Icon(
+                imageVector = Icons.Filled.PlayArrow,
+                contentDescription = "播放",
+                tint = Color.Black,
+                modifier = Modifier.size(30.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Icon(
+                imageVector = Icons.Filled.SkipNext,
+                contentDescription = "下一首",
+                tint = Color(0xFFB8B8B8),
+                modifier = Modifier.size(30.dp)
+            )
+        }
     }
 }
 
