@@ -1,7 +1,13 @@
 package com.example.seteasecloudmusic.player.playback
 
-import android.media.AudioAttributes
-import android.media.MediaPlayer
+import android.content.ComponentName
+import android.content.Context
+import androidx.core.net.toUri
+import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
+import androidx.media3.common.Player
+import androidx.media3.session.MediaController
+import androidx.media3.session.SessionToken
 import com.example.seteasecloudmusic.domain.model.Track
 import com.example.seteasecloudmusic.domain.usecase.PrepareTrackForPlaybackUseCase
 import kotlinx.coroutines.CoroutineDispatcher
@@ -11,201 +17,170 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
-enum class PlayerStatus {
-    IDLE,      // 初始或已停止，无有效播放任务
-    BUFFERING, // 正在准备播放资源
-    PLAYING,   // 正在播放
-    PAUSED,    // 已暂停，可继续
-    ENDED,     // 自然播放结束
-    ERROR      // 播放链路发生错误
-}
+enum class PlayerStatus { IDLE, BUFFERING, PLAYING, PAUSED, ENDED, ERROR }
 
 data class PlaybackState(
     val status: PlayerStatus = PlayerStatus.IDLE,
-    val currentTrack: Track? = null, // 当前要播/正在播的曲目
-    val currentPositionMs: Int = 0,  // 当前进度（毫秒）
-    val durationMs: Int = 0,         // 总时长（毫秒），未知时为 0
-    val errorMessage: String? = null // 最近一次错误信息（仅 ERROR 态有值）
+    val currentTrack: Track? = null,
+    val currentPositionMs: Int = 0,
+    val durationMs: Int = 0,
+    val errorMessage: String? = null
 )
 
 class MusicPlayerController(
+    private val context: Context,
     private val prepareTrackForPlaybackUseCase: PrepareTrackForPlaybackUseCase,
     private val mainDispatcher: CoroutineDispatcher = Dispatchers.Main,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) {
+    // 控制器自己的协程域：用于异步连接服务、拉 URL、更新状态
     private val scope = CoroutineScope(SupervisorJob() + mainDispatcher)
 
-    private var mediaPlayer: MediaPlayer? = null
+    // Media3 控制端（连接到 MusicService 的 MediaSession）
+    private var controller: MediaController? = null
+
+    // 进度轮询任务：每 500ms 同步一次 position/duration 到 UI
     private var progressJob: Job? = null
 
     private val _playbackState = MutableStateFlow(PlaybackState())
     val playbackState: StateFlow<PlaybackState> = _playbackState.asStateFlow()
 
-    fun play(track: Track) {
-        scope.launch {
-            // 进入缓冲态：UI 可显示加载指示器，且清掉历史错误。
+    // 监听 Media3 播放器状态变化，统一映射到你的 PlaybackState
+    private val playerListener = object : Player.Listener {
+        override fun onPlaybackStateChanged(playbackState: Int) {
+            val c = controller ?: return
+            val mapped = when (playbackState) {
+                Player.STATE_IDLE -> PlayerStatus.IDLE
+                Player.STATE_BUFFERING -> PlayerStatus.BUFFERING
+                Player.STATE_READY -> if (c.isPlaying) PlayerStatus.PLAYING else PlayerStatus.PAUSED
+                Player.STATE_ENDED -> PlayerStatus.ENDED
+                else -> PlayerStatus.ERROR
+            }
+
             _playbackState.update {
                 it.copy(
-                    status = PlayerStatus.BUFFERING,
-                    currentTrack = track,
-                    errorMessage = null
+                    status = mapped,
+                    currentPositionMs = c.currentPosition.toInt().coerceAtLeast(0),
+                    durationMs = c.duration.takeIf { d -> d > 0 }?.toInt() ?: 0
                 )
             }
 
-            // URL 获取属于 I/O 操作，切到 ioDispatcher，避免阻塞主线程。
-            val preparedResult = kotlinx.coroutines.withContext(ioDispatcher) {
-                prepareTrackForPlaybackUseCase(track)
+            if (mapped == PlayerStatus.PLAYING) startProgressTicker() else stopProgressTicker()
+        }
+
+        override fun onIsPlayingChanged(isPlaying: Boolean) {
+            _playbackState.update {
+                it.copy(status = if (isPlaying) PlayerStatus.PLAYING else PlayerStatus.PAUSED)
+            }
+            if (isPlaying) startProgressTicker() else stopProgressTicker()
+        }
+
+        override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+            stopProgressTicker()
+            _playbackState.update {
+                it.copy(status = PlayerStatus.ERROR, errorMessage = error.message ?: "Playback error")
+            }
+        }
+    }
+
+    /** 在 ViewModel 初始化时调用：建立到 MusicService 的连接 */
+    fun connect() {
+        val token = SessionToken(context, ComponentName(context, MusicService::class.java))
+        val future = MediaController.Builder(context, token).buildAsync()
+
+        future.addListener(
+            {
+                runCatching { future.get() }
+                    .onSuccess { c ->
+                        controller = c
+                        c.addListener(playerListener)
+                    }
+                    .onFailure { e ->
+                        _playbackState.update {
+                            it.copy(status = PlayerStatus.ERROR, errorMessage = e.message)
+                        }
+                    }
+            },
+            context.mainExecutor
+        )
+    }
+
+    fun play(track: Track) {
+        scope.launch {
+            _playbackState.update {
+                it.copy(status = PlayerStatus.BUFFERING, currentTrack = track, errorMessage = null)
             }
 
-            preparedResult
-                .onSuccess { preparedTrack ->
-                    // 双重校验：既要有 URL，也要业务上允许播放。
-                    val url = preparedTrack.playableUrl
-                    if (url.isNullOrBlank() || !preparedTrack.isPlayable) {
+            val prepared = withContext(ioDispatcher) { prepareTrackForPlaybackUseCase(track) }
+
+            prepared
+                .onSuccess { t ->
+                    val url = t.playableUrl
+                    if (url.isNullOrBlank() || !t.isPlayable) {
                         _playbackState.update {
-                            it.copy(
-                                status = PlayerStatus.ERROR,
-                                errorMessage = "Track is not playable"
-                            )
+                            it.copy(status = PlayerStatus.ERROR, errorMessage = "Track is not playable")
                         }
                         return@onSuccess
                     }
-                    startMediaPlayer(preparedTrack, url)
-                }
-                .onFailure { throwable ->
-                    // 用例失败统一转为 ERROR 态，交给 UI 处理提示。
-                    _playbackState.update {
-                        it.copy(
-                            status = PlayerStatus.ERROR,
-                            errorMessage = throwable.message ?: "Unknown playback error"
+
+                    val item = MediaItem.Builder()
+                        .setMediaId(t.id.toString())
+                        .setUri(url)
+                        .setMediaMetadata(
+                            MediaMetadata.Builder()
+                                .setTitle(t.title)
+                                .setArtist(t.artists.joinToString(" / ") { it.name })
+                                .setArtworkUri(t.coverUrl?.toUri())
+                                .build()
                         )
+                        .build()
+
+                    controller?.apply {
+                        setMediaItem(item)
+                        prepare()
+                        play()
+                    } ?: _playbackState.update {
+                        it.copy(status = PlayerStatus.ERROR, errorMessage = "Controller not connected")
+                    }
+                }
+                .onFailure { e ->
+                    _playbackState.update {
+                        it.copy(status = PlayerStatus.ERROR, errorMessage = e.message ?: "Unknown error")
                     }
                 }
         }
     }
 
-    fun pause() {
-        val player = mediaPlayer ?: return
-        if (player.isPlaying) {
-            player.pause()
-            _playbackState.update {
-                it.copy(
-                    status = PlayerStatus.PAUSED,
-                    currentPositionMs = safeCurrentPosition(player)
-                )
-            }
-        }
-    }
-
-    fun resume() {
-        val player = mediaPlayer ?: return
-        runCatching { player.start() }
-            .onSuccess {
-                _playbackState.update { it.copy(status = PlayerStatus.PLAYING) }
-                startProgressTicker()
-            }
-            .onFailure { e ->
-                _playbackState.update {
-                    it.copy(status = PlayerStatus.ERROR, errorMessage = e.message)
-                }
-            }
-    }
-
-    fun stop() {
-        stopInternal(resetState = true)
-    }
-
-    fun seekTo(positionMs: Int) {
-        val player = mediaPlayer ?: return
-        runCatching { player.seekTo(positionMs) }
-    }
+    fun pause() = controller?.pause() ?: Unit
+    fun resume() = controller?.play() ?: Unit
+    fun stop() = controller?.stop() ?: Unit
+    fun seekTo(positionMs: Int) = controller?.seekTo(positionMs.toLong()) ?: Unit
 
     fun release() {
-        stopInternal(resetState = true)
-        scope.coroutineContext.cancel()
-    }
-
-    private fun startMediaPlayer(track: Track, url: String) {
-        // 启新播放前先清理旧播放器，避免资源泄漏和多实例并发播放。
-        stopInternal(resetState = false)
-
-        val player = MediaPlayer()
-        mediaPlayer = player
-
-        runCatching {
-            player.setAudioAttributes(
-                AudioAttributes.Builder()
-                    .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
-                    .setUsage(AudioAttributes.USAGE_MEDIA)
-                    .build()
-            )
-            player.setDataSource(url)
-
-            player.setOnPreparedListener { mp ->
-                // prepareAsync 完成后启动播放，并写入初始时长/进度。
-                mp.start()
-                _playbackState.update {
-                    it.copy(
-                        status = PlayerStatus.PLAYING,
-                        currentTrack = track,
-                        durationMs = runCatching { mp.duration }.getOrDefault(0),
-                        currentPositionMs = 0,
-                        errorMessage = null
-                    )
-                }
-                startProgressTicker()
-            }
-
-            player.setOnCompletionListener {
-                // 自然结束：停止进度轮询并切 ENDED 态。
-                stopProgressTicker()
-                _playbackState.update {
-                    it.copy(
-                        status = PlayerStatus.ENDED,
-                        currentPositionMs = it.durationMs
-                    )
-                }
-            }
-
-            player.setOnErrorListener { _, what, extra ->
-                // MediaPlayer 底层错误统一收敛到 ERROR 态，避免静默失败。
-                stopProgressTicker()
-                _playbackState.update {
-                    it.copy(
-                        status = PlayerStatus.ERROR,
-                        errorMessage = "MediaPlayer error what=$what extra=$extra"
-                    )
-                }
-                true
-            }
-
-            // 异步准备，避免主线程同步 prepare 导致卡顿。
-            player.prepareAsync()
-        }.onFailure { e ->
-            // 初始化失败时同步回收播放器，防止半初始化对象残留。
-            _playbackState.update {
-                it.copy(status = PlayerStatus.ERROR, errorMessage = e.message)
-            }
-            stopInternal(resetState = false)
-        }
+        stopProgressTicker()
+        controller?.removeListener(playerListener)
+        controller?.release()
+        controller = null
+        scope.cancel()
     }
 
     private fun startProgressTicker() {
         stopProgressTicker()
         progressJob = scope.launch {
             while (isActive) {
-                val player = mediaPlayer ?: break
+                val c = controller ?: break
                 _playbackState.update {
                     it.copy(
-                        currentPositionMs = safeCurrentPosition(player),
-                        durationMs = safeDuration(player)
+                        currentPositionMs = c.currentPosition.toInt().coerceAtLeast(0),
+                        durationMs = c.duration.takeIf { d -> d > 0 }?.toInt() ?: 0
                     )
                 }
                 delay(500L)
@@ -216,29 +191,5 @@ class MusicPlayerController(
     private fun stopProgressTicker() {
         progressJob?.cancel()
         progressJob = null
-    }
-
-    private fun stopInternal(resetState: Boolean) {
-        stopProgressTicker()
-        mediaPlayer?.let { player ->
-            // 逐步释放：stop/reset/release 都包 runCatching，避免状态异常崩溃。
-            runCatching { player.stop() }
-            runCatching { player.reset() }
-            runCatching { player.release() }
-        }
-        mediaPlayer = null
-
-        // resetState=true 时回到初始态（用于 stop/release）。
-        if (resetState) {
-            _playbackState.value = PlaybackState()
-        }
-    }
-
-    private fun safeCurrentPosition(player: MediaPlayer): Int {
-        return runCatching { player.currentPosition }.getOrDefault(0)
-    }
-
-    private fun safeDuration(player: MediaPlayer): Int {
-        return runCatching { player.duration }.getOrDefault(0)
     }
 }
