@@ -35,9 +35,17 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInParent
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.lerp
+import com.example.seteasecloudmusic.data.api.NeteaseMusicService
+import com.example.seteasecloudmusic.data.repository.MusicRepositoryImpl
+import com.example.seteasecloudmusic.di.NetworkModule
+import com.example.seteasecloudmusic.domain.usecase.GetSearchSuggestionsUseCase
+import com.example.seteasecloudmusic.domain.usecase.SearchMusicUseCase
+import com.example.seteasecloudmusic.presentation.screens.SearchRoute
+import com.example.seteasecloudmusic.presentation.screens.SearchViewModel
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.backdrop.backdrops.layerBackdrop
@@ -196,6 +204,19 @@ fun GlassSlider(
  */
 @Composable
 fun AppNavigation() {
+    // 懒加载依赖：仅在真正需要时才创建
+    val searchViewModel = remember {
+        val networkModule = NetworkModule()
+        val musicService = networkModule.provideNeteaseMusicService()
+        val musicRepository = MusicRepositoryImpl(musicService)
+        val searchMusicUseCase = SearchMusicUseCase(musicRepository)
+        val getSearchSuggestionsUseCase = GetSearchSuggestionsUseCase(musicRepository)
+        SearchViewModel(
+            searchMusicUseCase = searchMusicUseCase,
+            getSearchSuggestionsUseCase = getSearchSuggestionsUseCase
+        )
+    }
+
     // 背景底色会参与毛玻璃采样，决定整个导航栏的基础明度。
     val backgroundColor = Color.White
     
@@ -254,8 +275,14 @@ fun AppNavigation() {
                 // 被包进来的内容会先渲染到底层纹理，再提供给上面的导航栏做模糊采样。
                 .layerBackdrop(backdrop)
         ) {
-            // 当前先只放背景，后续接入页面内容时也可以放在这一层一起参与采样。
-            LiquidGlassBackground()
+            // 根据 selectedIndex 显示不同页面
+            when (selectedIndex) {
+                0 -> LiquidGlassBackground() // 主页
+                1 -> LiquidGlassBackground() // 电台
+                2 -> LiquidGlassBackground() // 我的
+                3 -> SearchRoute(viewModel = searchViewModel) // 搜索
+                else -> LiquidGlassBackground()
+            }
         }
 
         // --- 顶层悬浮导航栏及独立搜索按钮 ---
