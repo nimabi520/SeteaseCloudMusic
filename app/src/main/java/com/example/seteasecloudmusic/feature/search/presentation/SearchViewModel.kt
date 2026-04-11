@@ -31,8 +31,7 @@ data class SearchUiState(
 
 class SearchViewModel(
     private val searchMusicUseCase: SearchMusicUseCase,
-    private val getSearchSuggestionsUseCase: GetSearchSuggestionsUseCase,
-    private val suggestionType: String = DEFAULT_SUGGESTION_TYPE
+    private val getSearchSuggestionsUseCase: GetSearchSuggestionsUseCase
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(SearchUiState())
     val uiState = _uiState.asStateFlow()
@@ -45,8 +44,8 @@ class SearchViewModel(
     companion object {
         // 输入联想不需要每次敲字都立刻请求，做一层轻量防抖更节省接口调用。
         private const val SEARCH_SUGGEST_DEBOUNCE_MS = 300L
-        // 当前是 Android 场景，默认走 mobile 类型，让建议结构更贴近移动端。
-        private const val DEFAULT_SUGGESTION_TYPE = "mobile"
+        // 输入时自动搜索的防抖，比建议稍长一点，减少接口调用。
+        private const val AUTO_SEARCH_DEBOUNCE_MS = 500L
     }
 
     /**
@@ -100,6 +99,7 @@ class SearchViewModel(
         }
 
         requestSearchSuggestions(normalizedQuery)
+        requestAutoSearch(normalizedQuery)
     }
 
     /**
@@ -113,7 +113,6 @@ class SearchViewModel(
             return
         }
 
-        // 提交正式搜索前先收起建议，避免建议列表和搜索结果同时占用页面语义。
         clearSearchSuggestions()
         lastSubmittedQuery = query
         search(query)
@@ -256,6 +255,53 @@ class SearchViewModel(
     }
 
     /**
+     * 输入变化时自动发起搜索（cloudsearch）。
+     *
+     * 带防抖处理，避免每次敲字都请求；
+     * 返回后会校验输入是否仍匹配，防止慢请求覆盖新结果。
+     */
+    private fun requestAutoSearch(query: String) {
+        searchJob?.cancel()
+
+        searchJob = viewModelScope.launch {
+            delay(AUTO_SEARCH_DEBOUNCE_MS)
+
+            _uiState.update { state ->
+                state.copy(
+                    isLoading = true,
+                    errorMessage = null
+                )
+            }
+
+            val result = searchMusicUseCase(query)
+
+            if (uiState.value.query.trim() != query) {
+                return@launch
+            }
+
+            result.fold(
+                onSuccess = { tracks ->
+                    _uiState.update { state ->
+                        state.copy(
+                            isLoading = false,
+                            tracks = tracks,
+                            errorMessage = null
+                        )
+                    }
+                },
+                onFailure = { throwable ->
+                    _uiState.update { state ->
+                        state.copy(
+                            isLoading = false,
+                            errorMessage = throwable.message ?: "搜索失败，请稍后重试"
+                        )
+                    }
+                }
+            )
+        }
+    }
+
+    /**
      * 请求联想建议并更新建议状态。
      *
      * 内部包含防抖逻辑，且在请求返回后会校验输入是否仍匹配，
@@ -278,10 +324,7 @@ class SearchViewModel(
                 )
             }
 
-            val result = getSearchSuggestionsUseCase(
-                query = query,
-                type = suggestionType.takeIf { it.isNotBlank() }
-            )
+            val result = getSearchSuggestionsUseCase(query = query, type = "mobile")
 
             // 用户已经继续输入时，丢弃旧建议，避免列表与输入框内容不一致。
             if (uiState.value.query.trim() != query) {
@@ -317,7 +360,6 @@ class SearchViewModel(
      * 取消联想请求并清空建议列表、建议加载态及建议错误信息。
      */
     private fun clearSearchSuggestions() {
-        // 把联想请求和联想态一起收尾，给提交搜索、重试、清空等多个入口共用。
         suggestionJob?.cancel()
         suggestionJob = null
         _uiState.update { state ->
@@ -328,4 +370,5 @@ class SearchViewModel(
             )
         }
     }
+
 }

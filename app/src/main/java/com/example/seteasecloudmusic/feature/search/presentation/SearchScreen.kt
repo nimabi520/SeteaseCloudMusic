@@ -100,6 +100,12 @@ private sealed interface SearchRowItem {
     ) : SearchRowItem {
         override val key: String = "playlist_$id"
     }
+
+    data class Suggestion(
+        val keyword: String
+    ) : SearchRowItem {
+        override val key: String = "suggest_$keyword"
+    }
 }
 
 @Composable
@@ -249,6 +255,11 @@ private fun SearchResultsList(
                     trackCount = item.trackCount,
                     coverUrl = item.coverUrl,
                     onClick = { onRowClick(item.name) }
+                )
+
+                is SearchRowItem.Suggestion -> SuggestionRow(
+                    keyword = item.keyword,
+                    onClick = { onRowClick(item.keyword) }
                 )
             }
 
@@ -464,6 +475,39 @@ private fun PlaylistRow(
 }
 
 @Composable
+private fun SuggestionRow(
+    keyword: String,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
+            .padding(horizontal = 16.dp, vertical = 11.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = Icons.Filled.Search,
+            contentDescription = null,
+            tint = SecondaryText,
+            modifier = Modifier.size(20.dp)
+        )
+
+        Spacer(modifier = Modifier.width(12.dp))
+
+        Text(
+            text = keyword,
+            fontSize = 17.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = PrimaryText,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f)
+        )
+    }
+}
+
+@Composable
 private fun Artwork(
     imageUrl: String?,
     size: Dp,
@@ -582,9 +626,11 @@ private fun buildSearchItems(
     uiState: SearchUiState,
     selectedTab: SearchTab
 ): List<SearchRowItem> {
-    val songs = if (uiState.tracks.isNotEmpty()) uiState.tracks else uiState.suggestions.songs
+    // 歌曲、艺人、专辑统一只使用正式搜索（cloudsearch）结果，
+    // 保证图片、艺人名等数据完整正确。
+    val tracks = uiState.tracks
 
-    val artistsFromTracks = songs
+    val artists = tracks
         .flatMap { track ->
             track.artists.map { artist ->
                 SearchRowItem.Artist(
@@ -596,19 +642,7 @@ private fun buildSearchItems(
         }
         .distinctBy { it.id }
 
-    val artists = if (uiState.suggestions.artists.isNotEmpty()) {
-        uiState.suggestions.artists.map {
-            SearchRowItem.Artist(
-                id = it.id,
-                name = it.name,
-                coverUrl = it.coverUrl
-            )
-        }
-    } else {
-        artistsFromTracks
-    }
-
-    val albums = songs
+    val albums = tracks
         .map {
             SearchRowItem.Album(
                 id = it.album.id,
@@ -631,10 +665,14 @@ private fun buildSearchItems(
     return when (selectedTab) {
         SearchTab.BEST -> {
             val mixed = mutableListOf<SearchRowItem>()
-            songs.firstOrNull()?.let { mixed += SearchRowItem.Song(it) }
-            albums.firstOrNull()?.let { mixed += it }
-            artists.firstOrNull()?.let { mixed += it }
-            mixed += songs.drop(1).take(8).map { SearchRowItem.Song(it) }
+            // 1) 搜索联想建议（最多 3 个）
+            mixed += uiState.suggestions.allMatch.take(3).map { SearchRowItem.Suggestion(it) }
+            // 2) 歌曲
+            mixed += tracks.take(8).map { SearchRowItem.Song(it) }
+            // 3) 艺人
+            mixed += artists.take(4)
+            // 4) 专辑
+            mixed += albums.take(4)
             if (mixed.isEmpty()) {
                 mixed += playlists.take(6)
             }
@@ -643,7 +681,7 @@ private fun buildSearchItems(
 
         SearchTab.ARTIST -> artists
         SearchTab.ALBUM -> albums
-        SearchTab.SONG -> songs.map { SearchRowItem.Song(it) }
+        SearchTab.SONG -> tracks.map { SearchRowItem.Song(it) }
         SearchTab.PLAYLIST -> playlists
         SearchTab.MV -> emptyList()
     }
