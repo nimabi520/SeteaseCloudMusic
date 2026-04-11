@@ -245,8 +245,7 @@ fun AppNavigation() {
     }
     val navBarContentBackdrop = rememberLayerBackdrop()
 
-    // 记录导航栏宽度和当前手指 X 坐标准备拖拽交互
-    var barWidth by remember { mutableFloatStateOf(0f) }
+    // 记录当前手指 X 坐标准备拖拽交互
     var dragOffsetX by remember { mutableStateOf<Float?>(null) }
 
     // 记录当前选中的导航项：
@@ -365,7 +364,7 @@ fun AppNavigation() {
                                 selectedIndex = 0
                             }
                         }
-                        .pointerInput(mainBarAnimationScope) {
+                        .pointerInput(mainBarAnimationScope, isSearchExpanded, mainNavItems.size) {
                             if (isSearchExpanded) return@pointerInput // 当搜索展开时，直接通过 clickable 重置，不响应滑动切换
                             awaitEachGesture {
                                 val down = awaitFirstDown()
