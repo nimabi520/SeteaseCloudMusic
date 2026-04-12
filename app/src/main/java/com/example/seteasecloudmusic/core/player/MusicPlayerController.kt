@@ -33,7 +33,9 @@ data class PlaybackState(
     val currentTrack: Track? = null,
     val currentPositionMs: Int = 0,
     val durationMs: Int = 0,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    val queueTracks: List<Track> = emptyList(),
+    val currentQueueIndex: Int = -1
 )
 
 class MusicPlayerController(
@@ -50,6 +52,8 @@ class MusicPlayerController(
 
     // 进度轮询任务：每 500ms 同步一次 position/duration 到 UI
     private var progressJob: Job? = null
+    private var playJob: Job? = null
+    private var latestPlayRequestId: Long = 0L
 
     private val _playbackState = MutableStateFlow(PlaybackState())
     val playbackState: StateFlow<PlaybackState> = _playbackState.asStateFlow()
@@ -64,6 +68,12 @@ class MusicPlayerController(
                 Player.STATE_READY -> if (c.isPlaying) PlayerStatus.PLAYING else PlayerStatus.PAUSED
                 Player.STATE_ENDED -> PlayerStatus.ENDED
                 else -> PlayerStatus.ERROR
+            }
+
+            if (mapped == PlayerStatus.ENDED) {
+                if (playNextInternal()) {
+                    return
+                }
             }
 
             _playbackState.update {
@@ -114,16 +124,113 @@ class MusicPlayerController(
         )
     }
 
-    fun play(track: Track) {
-        scope.launch {
+    fun replaceQueueAndPlay(tracks: List<Track>, startIndex: Int = 0) {
+        val snapshot = tracks.toList()
+        if (snapshot.isEmpty()) {
             _playbackState.update {
-                it.copy(status = PlayerStatus.BUFFERING, currentTrack = track, errorMessage = null)
+                it.copy(status = PlayerStatus.ERROR, errorMessage = "Queue is empty")
+            }
+            return
+        }
+        if (startIndex !in snapshot.indices) {
+            _playbackState.update {
+                it.copy(
+                    status = PlayerStatus.ERROR,
+                    errorMessage = "Queue index out of bounds"
+                )
+            }
+            return
+        }
+
+        _playbackState.update {
+            it.copy(
+                queueTracks = snapshot,
+                currentQueueIndex = startIndex,
+                errorMessage = null
+            )
+        }
+
+        playQueueIndex(startIndex)
+    }
+
+    fun play(track: Track) {
+        replaceQueueAndPlay(listOf(track), startIndex = 0)
+    }
+
+    fun playNext() {
+        playNextInternal()
+    }
+
+    fun playPrevious() {
+        val state = _playbackState.value
+        val previousIndex = state.currentQueueIndex - 1
+        if (previousIndex !in state.queueTracks.indices) {
+            return
+        }
+        playQueueIndex(previousIndex)
+    }
+
+    fun replayCurrent() {
+        val state = _playbackState.value
+        when {
+            state.currentQueueIndex in state.queueTracks.indices -> {
+                playQueueIndex(state.currentQueueIndex)
+            }
+
+            state.currentTrack != null -> {
+                play(state.currentTrack)
+            }
+        }
+    }
+
+    fun pause() = controller?.pause() ?: Unit
+    fun resume() = controller?.play() ?: Unit
+    fun stop() = controller?.stop() ?: Unit
+    fun seekTo(positionMs: Int) = controller?.seekTo(positionMs.toLong()) ?: Unit
+
+    fun release() {
+        stopProgressTicker()
+        playJob?.cancel()
+        playJob = null
+        controller?.removeListener(playerListener)
+        controller?.release()
+        controller = null
+        scope.cancel()
+    }
+
+    private fun playQueueIndex(index: Int) {
+        val queue = _playbackState.value.queueTracks
+        if (index !in queue.indices) {
+            _playbackState.update {
+                it.copy(status = PlayerStatus.ERROR, errorMessage = "Queue index out of bounds")
+            }
+            return
+        }
+
+        val track = queue[index]
+        playJob?.cancel()
+        val requestId = nextPlayRequestId()
+        playJob = scope.launch {
+            _playbackState.update {
+                it.copy(
+                    status = PlayerStatus.BUFFERING,
+                    currentTrack = track,
+                    currentQueueIndex = index,
+                    errorMessage = null
+                )
             }
 
             val prepared = withContext(ioDispatcher) { prepareTrackForPlaybackUseCase(track) }
+            if (isStaleRequest(requestId)) {
+                return@launch
+            }
 
             prepared
                 .onSuccess { t ->
+                    if (isStaleRequest(requestId)) {
+                        return@onSuccess
+                    }
+
                     val url = t.playableUrl
                     if (url.isNullOrBlank() || !t.isPlayable) {
                         _playbackState.update {
@@ -153,6 +260,9 @@ class MusicPlayerController(
                     }
                 }
                 .onFailure { e ->
+                    if (isStaleRequest(requestId)) {
+                        return@onFailure
+                    }
                     _playbackState.update {
                         it.copy(status = PlayerStatus.ERROR, errorMessage = e.message ?: "Unknown error")
                     }
@@ -160,18 +270,26 @@ class MusicPlayerController(
         }
     }
 
-    fun pause() = controller?.pause() ?: Unit
-    fun resume() = controller?.play() ?: Unit
-    fun stop() = controller?.stop() ?: Unit
-    fun seekTo(positionMs: Int) = controller?.seekTo(positionMs.toLong()) ?: Unit
+    private fun playNextInternal(): Boolean {
+        val state = _playbackState.value
+        val nextIndex = state.currentQueueIndex + 1
+        if (nextIndex !in state.queueTracks.indices) {
+            _playbackState.update {
+                it.copy(status = PlayerStatus.ENDED, errorMessage = null)
+            }
+            return false
+        }
 
-    fun release() {
-        stopProgressTicker()
-        controller?.removeListener(playerListener)
-        controller?.release()
-        controller = null
-        scope.cancel()
+        playQueueIndex(nextIndex)
+        return true
     }
+
+    private fun nextPlayRequestId(): Long {
+        latestPlayRequestId += 1L
+        return latestPlayRequestId
+    }
+
+    private fun isStaleRequest(requestId: Long): Boolean = requestId != latestPlayRequestId
 
     private fun startProgressTicker() {
         stopProgressTicker()

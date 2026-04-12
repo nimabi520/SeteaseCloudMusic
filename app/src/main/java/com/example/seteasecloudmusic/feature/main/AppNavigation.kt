@@ -18,6 +18,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Radio
@@ -37,13 +38,19 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.lerp
+import com.example.seteasecloudmusic.core.player.MusicPlayerController
+import com.example.seteasecloudmusic.core.player.PlaybackState
+import com.example.seteasecloudmusic.core.player.PlayerStatus
 import com.example.seteasecloudmusic.feature.search.data.SearchRepositoryImpl
 import com.example.seteasecloudmusic.core.network.NetworkModule
 import com.example.seteasecloudmusic.feature.search.domain.GetSearchSuggestionsUseCase
+import com.example.seteasecloudmusic.feature.search.domain.GetTrackUrlUseCase
+import com.example.seteasecloudmusic.feature.search.domain.PrepareTrackForPlaybackUseCase
 import com.example.seteasecloudmusic.feature.search.domain.SearchMusicUseCase
 import com.example.seteasecloudmusic.feature.search.presentation.SearchRoute
 import com.example.seteasecloudmusic.feature.search.presentation.SearchViewModel
@@ -205,19 +212,42 @@ fun GlassSlider(
  */
 @Composable
 fun AppNavigation() {
-    // 懒加载依赖：仅在真正需要时才创建
-    val searchViewModel = remember {
+    val appContext = LocalContext.current.applicationContext
+
+    val searchRepository = remember {
         val networkModule = NetworkModule()
         val musicService = networkModule.provideNeteaseMusicService()
-        val musicRepository = SearchRepositoryImpl(musicService)
-        val searchMusicUseCase = SearchMusicUseCase(musicRepository)
-        val getSearchSuggestionsUseCase = GetSearchSuggestionsUseCase(musicRepository)
+        SearchRepositoryImpl(musicService)
+    }
+
+    val musicPlayerController = remember(appContext) {
+        val getTrackUrlUseCase = GetTrackUrlUseCase(searchRepository)
+        val prepareTrackForPlaybackUseCase = PrepareTrackForPlaybackUseCase(getTrackUrlUseCase)
+        MusicPlayerController(
+            context = appContext,
+            prepareTrackForPlaybackUseCase = prepareTrackForPlaybackUseCase
+        )
+    }
+
+    DisposableEffect(musicPlayerController) {
+        musicPlayerController.connect()
+        onDispose {
+            musicPlayerController.release()
+        }
+    }
+
+    // 懒加载依赖：仅在真正需要时才创建
+    val searchViewModel = remember {
+        val searchMusicUseCase = SearchMusicUseCase(searchRepository)
+        val getSearchSuggestionsUseCase = GetSearchSuggestionsUseCase(searchRepository)
         SearchViewModel(
             searchMusicUseCase = searchMusicUseCase,
-            getSearchSuggestionsUseCase = getSearchSuggestionsUseCase
+            getSearchSuggestionsUseCase = getSearchSuggestionsUseCase,
+            musicPlayerController = musicPlayerController
         )
     }
     val searchUiState by searchViewModel.uiState.collectAsState()
+    val playbackState by musicPlayerController.playbackState.collectAsState()
 
     // 背景底色会参与毛玻璃采样，决定整个导航栏的基础明度。
     val backgroundColor = Color.White
@@ -611,6 +641,18 @@ fun AppNavigation() {
         SearchMiniPlayerBar(
             backdrop = backdrop,
             cornerRadius = cornerRadius,
+            playbackState = playbackState,
+            onPlayPauseClick = {
+                when (playbackState.status) {
+                    PlayerStatus.PLAYING -> musicPlayerController.pause()
+                    PlayerStatus.PAUSED -> musicPlayerController.resume()
+                    PlayerStatus.BUFFERING -> Unit
+                    PlayerStatus.IDLE,
+                    PlayerStatus.ENDED,
+                    PlayerStatus.ERROR -> musicPlayerController.replayCurrent()
+                }
+            },
+            onNextClick = { musicPlayerController.playNext() },
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .windowInsetsPadding(WindowInsets.navigationBars)
@@ -644,8 +686,17 @@ fun AppNavigation() {
 private fun SearchMiniPlayerBar(
     backdrop: Backdrop,
     cornerRadius: Dp,
+    playbackState: PlaybackState,
+    onPlayPauseClick: () -> Unit,
+    onNextClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val hasTrack = playbackState.currentTrack != null
+    val isPlaying = playbackState.status == PlayerStatus.PLAYING
+    val hasNextTrack =
+        playbackState.currentQueueIndex in playbackState.queueTracks.indices &&
+            playbackState.currentQueueIndex < playbackState.queueTracks.lastIndex
+
     Box(
         modifier = modifier
             .fillMaxWidth()
@@ -668,23 +719,27 @@ private fun SearchMiniPlayerBar(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "未在播放",
+                text = playbackState.currentTrack?.title ?: "未在播放",
                 color = Color.Black,
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.weight(1f)
             )
             Icon(
-                imageVector = Icons.Filled.PlayArrow,
-                contentDescription = "播放",
-                tint = Color.Black,
-                modifier = Modifier.size(30.dp)
+                imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                contentDescription = if (isPlaying) "暂停" else "播放",
+                tint = if (hasTrack) Color.Black else Color(0xFFB8B8B8),
+                modifier = Modifier
+                    .size(30.dp)
+                    .clickable(enabled = hasTrack) { onPlayPauseClick() }
             )
             Spacer(modifier = Modifier.width(8.dp))
             Icon(
                 imageVector = Icons.Filled.SkipNext,
                 contentDescription = "下一首",
-                tint = Color(0xFFB8B8B8),
-                modifier = Modifier.size(30.dp)
+                tint = if (hasNextTrack) Color.Black else Color(0xFFB8B8B8),
+                modifier = Modifier
+                    .size(30.dp)
+                    .clickable(enabled = hasNextTrack) { onNextClick() }
             )
         }
     }

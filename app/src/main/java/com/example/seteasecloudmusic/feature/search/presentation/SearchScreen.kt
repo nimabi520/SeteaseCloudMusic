@@ -116,6 +116,7 @@ fun SearchRoute(
     SearchScreenContent(
         uiState = uiState,
         onSuggestionClick = { viewModel.onSuggestionClick(it) },
+        onTrackClick = { viewModel.onTrackClick(it) },
         onRetryClick = { viewModel.onRetryClick() }
     )
 }
@@ -124,6 +125,7 @@ fun SearchRoute(
 fun SearchScreenContent(
     uiState: SearchUiState,
     onSuggestionClick: (String) -> Unit,
+    onTrackClick: (Track) -> Unit,
     onRetryClick: () -> Unit
 ) {
     var selectedTab by rememberSaveable(uiState.query) { mutableStateOf(SearchTab.BEST) }
@@ -185,6 +187,7 @@ fun SearchScreenContent(
                 SearchResultsList(
                     items = items,
                     onRowClick = onSuggestionClick,
+                    onTrackClick = onTrackClick,
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f)
@@ -227,6 +230,7 @@ private fun SearchTabsRow(
 private fun SearchResultsList(
     items: List<SearchRowItem>,
     onRowClick: (String) -> Unit,
+    onTrackClick: (Track) -> Unit,
     modifier: Modifier = Modifier
 ) {
     LazyColumn(modifier = modifier) {
@@ -234,7 +238,7 @@ private fun SearchResultsList(
             when (item) {
                 is SearchRowItem.Song -> SongRow(
                     track = item.track,
-                    onClick = { onRowClick(item.track.title) }
+                    onClick = { onTrackClick(item.track) }
                 )
 
                 is SearchRowItem.Album -> AlbumRow(

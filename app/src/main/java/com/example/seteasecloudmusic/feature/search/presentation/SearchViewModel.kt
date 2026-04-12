@@ -2,6 +2,7 @@ package com.example.seteasecloudmusic.feature.search.presentation
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.seteasecloudmusic.core.player.MusicPlayerController
 import com.example.seteasecloudmusic.feature.search.domain.SearchSuggestions
 import com.example.seteasecloudmusic.core.model.Track
 import com.example.seteasecloudmusic.feature.search.domain.GetSearchSuggestionsUseCase
@@ -31,7 +32,8 @@ data class SearchUiState(
 
 class SearchViewModel(
     private val searchMusicUseCase: SearchMusicUseCase,
-    private val getSearchSuggestionsUseCase: GetSearchSuggestionsUseCase
+    private val getSearchSuggestionsUseCase: GetSearchSuggestionsUseCase,
+    private val musicPlayerController: MusicPlayerController
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(SearchUiState())
     val uiState = _uiState.asStateFlow()
@@ -40,6 +42,7 @@ class SearchViewModel(
     // 正式搜索和联想建议各自维护独立 Job，避免互相取消或状态覆盖。
     private var searchJob: Job? = null
     private var suggestionJob: Job? = null
+    private var playbackJob: Job? = null
 
     companion object {
         // 输入联想不需要每次敲字都立刻请求，做一层轻量防抖更节省接口调用。
@@ -142,6 +145,35 @@ class SearchViewModel(
         clearSearchSuggestions()
         lastSubmittedQuery = query
         search(query)
+    }
+
+    /**
+     * 处理用户点击歌曲：以当前搜索结果快照形成队列，
+     * 从点击项开始顺序播放。
+     */
+    fun onTrackClick(track: Track) {
+        val snapshotTracks = uiState.value.tracks
+            .distinctBy { it.id }
+
+        if (snapshotTracks.isEmpty()) {
+            _uiState.update { state ->
+                state.copy(errorMessage = "当前没有可播放的搜索结果")
+            }
+            return
+        }
+
+        val clickedIndex = snapshotTracks.indexOfFirst { it.id == track.id }
+        if (clickedIndex !in snapshotTracks.indices) {
+            _uiState.update { state ->
+                state.copy(errorMessage = "未找到所选歌曲")
+            }
+            return
+        }
+
+        playbackJob?.cancel()
+        playbackJob = viewModelScope.launch {
+            musicPlayerController.replaceQueueAndPlay(snapshotTracks, clickedIndex)
+        }
     }
 
     /**
