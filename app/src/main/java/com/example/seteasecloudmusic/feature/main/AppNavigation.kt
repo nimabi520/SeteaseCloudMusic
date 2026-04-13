@@ -35,22 +35,15 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.util.lerp
-import com.example.seteasecloudmusic.core.player.MusicPlayerController
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.example.seteasecloudmusic.core.player.PlaybackState
 import com.example.seteasecloudmusic.core.player.PlayerStatus
-import com.example.seteasecloudmusic.feature.search.data.SearchRepositoryImpl
-import com.example.seteasecloudmusic.core.network.NetworkModule
-import com.example.seteasecloudmusic.feature.search.domain.GetSearchSuggestionsUseCase
-import com.example.seteasecloudmusic.feature.search.domain.GetTrackUrlUseCase
-import com.example.seteasecloudmusic.feature.search.domain.PrepareTrackForPlaybackUseCase
-import com.example.seteasecloudmusic.feature.search.domain.SearchMusicUseCase
 import com.example.seteasecloudmusic.feature.search.presentation.SearchRoute
 import com.example.seteasecloudmusic.feature.search.presentation.SearchViewModel
 import com.kyant.backdrop.Backdrop
@@ -64,6 +57,8 @@ import com.kyant.backdrop.effects.vibrancy
 import com.kyant.shapes.RoundedRectangle
 import kotlinx.coroutines.launch
 import kotlin.math.absoluteValue
+
+
 
 /**
  * `presentation.navigation` 模块说明：
@@ -211,42 +206,10 @@ fun GlassSlider(
  */
 @Composable
 fun AppNavigation() {
-    val appContext = LocalContext.current.applicationContext
+    val searchViewModel: SearchViewModel = hiltViewModel()
 
-    val searchRepository = remember {
-        val networkModule = NetworkModule()
-        val musicService = networkModule.provideNeteaseMusicService()
-        SearchRepositoryImpl(musicService)
-    }
-
-    val musicPlayerController = remember(appContext) {
-        val getTrackUrlUseCase = GetTrackUrlUseCase(searchRepository)
-        val prepareTrackForPlaybackUseCase = PrepareTrackForPlaybackUseCase(getTrackUrlUseCase)
-        MusicPlayerController(
-            context = appContext,
-            prepareTrackForPlaybackUseCase = prepareTrackForPlaybackUseCase
-        )
-    }
-
-    DisposableEffect(musicPlayerController) {
-        musicPlayerController.connect()
-        onDispose {
-            musicPlayerController.release()
-        }
-    }
-
-    // 懒加载依赖：仅在真正需要时才创建
-    val searchViewModel = remember {
-        val searchMusicUseCase = SearchMusicUseCase(searchRepository)
-        val getSearchSuggestionsUseCase = GetSearchSuggestionsUseCase(searchRepository)
-        SearchViewModel(
-            searchMusicUseCase = searchMusicUseCase,
-            getSearchSuggestionsUseCase = getSearchSuggestionsUseCase,
-            musicPlayerController = musicPlayerController
-        )
-    }
     val searchUiState by searchViewModel.uiState.collectAsState()
-    val playbackState by musicPlayerController.playbackState.collectAsState()
+    val playbackState by searchViewModel.playbackState.collectAsState()
 
     // 背景底色会参与毛玻璃采样，决定整个导航栏的基础明度。
     val backgroundColor = Color.White
@@ -677,17 +640,8 @@ fun AppNavigation() {
             backdrop = backdrop,
             cornerRadius = cornerRadius,
             playbackState = playbackState,
-            onPlayPauseClick = {
-                when (playbackState.status) {
-                    PlayerStatus.PLAYING -> musicPlayerController.pause()
-                    PlayerStatus.PAUSED -> musicPlayerController.resume()
-                    PlayerStatus.BUFFERING -> Unit
-                    PlayerStatus.IDLE,
-                    PlayerStatus.ENDED,
-                    PlayerStatus.ERROR -> musicPlayerController.replayCurrent()
-                }
-            },
-            onNextClick = { musicPlayerController.playNext() },
+            onPlayPauseClick = { searchViewModel.onMiniPlayerPlayPause() },
+            onNextClick = { searchViewModel.onMiniPlayerNext() },
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .windowInsetsPadding(WindowInsets.navigationBars)
@@ -795,6 +749,10 @@ private fun SearchMiniPlayerBar(
         }
     }
 }
+
+
+
+
 
 /**
  * 应用页面底色

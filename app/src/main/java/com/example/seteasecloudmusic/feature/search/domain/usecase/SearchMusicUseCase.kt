@@ -1,6 +1,7 @@
 package com.example.seteasecloudmusic.feature.search.domain
 
 import com.example.seteasecloudmusic.core.model.Track
+import javax.inject.Inject
 
 /**
  * `domain.usecase` 模块说明：
@@ -13,7 +14,7 @@ import com.example.seteasecloudmusic.core.model.Track
  * 2. 做最基础的输入校验与清洗。
  * 3. 调用 `MusicRepository` 返回搜索结果。
  */
-class SearchMusicUseCase(
+class SearchMusicUseCase @Inject constructor(
     private val searchRepository: SearchRepository
 ) {
     suspend operator fun invoke(

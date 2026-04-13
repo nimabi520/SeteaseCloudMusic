@@ -10,6 +10,7 @@ import com.example.seteasecloudmusic.feature.search.domain.SearchSuggestions
 import com.example.seteasecloudmusic.feature.search.domain.SearchRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import javax.inject.Inject
 
 /**
  * `data.repository` 模块说明：
@@ -21,7 +22,7 @@ import kotlinx.coroutines.withContext
  *
  * 当前 `MusicRepositoryImpl` 负责音乐搜索和歌曲播放链接获取。
  */
-class SearchRepositoryImpl(
+class SearchRepositoryImpl @Inject constructor(
     private val musicService: NeteaseMusicService
 ) : SearchRepository {
 
