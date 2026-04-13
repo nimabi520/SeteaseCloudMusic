@@ -4,7 +4,7 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
-import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -28,9 +28,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -40,8 +37,10 @@ import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.util.lerp
 import com.example.seteasecloudmusic.core.player.MusicPlayerController
 import com.example.seteasecloudmusic.core.player.PlaybackState
@@ -204,7 +203,7 @@ fun GlassSlider(
  * 应用的主导航入口组件
  *
  * 此组件构建了整个应用的基础布局结构，包含：
- * 1. 底层的 [LiquidGlassBackground] 背景
+ * 1. 底层的 [AppPageBackground] 背景
  * 2. 中间的内容区域（目前与背景层合并）
  * 3. 顶层悬浮的毛玻璃效果底部导航栏
  *
@@ -288,9 +287,32 @@ fun AppNavigation() {
     val navBarHeight = 60.dp
     val mainSearchGap = 16.dp
     val searchButtonWidth = navBarHeight
+    val statusBarTopPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val pageTitle = when (selectedIndex) {
+        0 -> "主页"
+        1 -> "电台"
+        2 -> "我的"
+        3 -> "搜索"
+        else -> "主页"
+    }
+    val searchContentTopPadding = statusBarTopPadding + 86.dp
     // 统一形状：使用 RoundedRectangle 实现 G² 连续圆角（squircle），
     // 让玻璃滑块、主导航条、搜索按钮共享一致的圆角半径。
     val cornerRadius = navBarHeight / 2
+
+    // ── 键盘（IME）感知：实现 Apple Music 风格的平滑上抬效果 ──
+    val imeBottomPx = WindowInsets.ime.getBottom(LocalDensity.current)
+    val navBarsBottomPx = WindowInsets.navigationBars.getBottom(LocalDensity.current)
+    // 键盘高度减去已经由 navigationBars inset 处理的底部距离
+    val targetImeOffsetDp = with(LocalDensity.current) {
+        (imeBottomPx - navBarsBottomPx).coerceAtLeast(0).toDp()
+    }
+    // 使用弹簧动画平滑过渡，避免键盘弹出时的生硬跳动
+    val animatedImeOffset by animateDpAsState(
+        targetValue = targetImeOffsetDp,
+        animationSpec = spring(dampingRatio = 0.8f, stiffness = 500f),
+        label = "imeOffset"
+    )
 
     // 2. 【舞台】：整个屏幕的根容器，使用 Box 以支持 Z 轴方向的层叠排列
     Box(modifier = Modifier.fillMaxSize()) {
@@ -305,13 +327,25 @@ fun AppNavigation() {
         ) {
             // 根据 selectedIndex 显示不同页面
             when (selectedIndex) {
-                0 -> LiquidGlassBackground() // 主页
-                1 -> LiquidGlassBackground() // 电台
-                2 -> LiquidGlassBackground() // 我的
-                3 -> SearchRoute(viewModel = searchViewModel) // 搜索
-                else -> LiquidGlassBackground()
+                0 -> AppPageBackground() // 主页
+                1 -> AppPageBackground() // 电台
+                2 -> AppPageBackground() // 我的
+                3 -> SearchRoute(
+                    viewModel = searchViewModel,
+                    topContentPadding = searchContentTopPadding,
+                    bottomContentPadding = 180.dp + animatedImeOffset
+                ) // 搜索
+                else -> AppPageBackground()
             }
         }
+
+        LargePageTitle(
+            title = pageTitle,
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .windowInsetsPadding(WindowInsets.statusBars)
+                .padding(start = 24.dp, top = 16.dp)
+        )
 
         // --- 顶层悬浮导航栏及独立搜索按钮 ---
         BoxWithConstraints(
@@ -320,7 +354,8 @@ fun AppNavigation() {
                 // 先避开系统导航栏（小白条）
                 .windowInsetsPadding(WindowInsets.navigationBars)
                 // 手动添加上下左右的间距，左右缩进，底部悬浮
-                .padding(horizontal = horizontalPadding, vertical = 24.dp)
+                .padding(horizontal = horizontalPadding)
+                .padding(top = 24.dp, bottom = 24.dp + animatedImeOffset)
                 .fillMaxWidth()
                 // 保持 Apple Music 的视觉高度
                 .height(navBarHeight)
@@ -656,7 +691,7 @@ fun AppNavigation() {
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .windowInsetsPadding(WindowInsets.navigationBars)
-                .padding(start = 24.dp, end = 24.dp, bottom = 100.dp)
+                .padding(start = 24.dp, end = 24.dp, bottom = 100.dp + animatedImeOffset)
         )
 
         GlassSlider(
@@ -674,9 +709,25 @@ fun AppNavigation() {
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .windowInsetsPadding(WindowInsets.navigationBars)
-                .padding(bottom = 24.dp) // 24dp(底部导航栏间距) + 64dp(导航栏高度) + 16dp(悬浮间距)
+                .padding(bottom = 24.dp + animatedImeOffset) // 底部导航栏间距 + 键盘偏移
         )
     }
+}
+
+@Composable
+private fun LargePageTitle(
+    title: String,
+    modifier: Modifier = Modifier
+) {
+    Text(
+        text = title,
+        color = Color.Black,
+        fontSize = 40.sp,
+        lineHeight = 44.sp,
+        letterSpacing = (-1).sp,
+        fontWeight = FontWeight.Black,
+        modifier = modifier
+    )
 }
 
 /**
@@ -746,53 +797,18 @@ private fun SearchMiniPlayerBar(
 }
 
 /**
- * 绘制液态玻璃背景组件
+ * 应用页面底色
  *
- * 使用原生 Canvas 绘制一系列多彩的圆角矩形，作为整个应用的背景底图。
- * 这些色块配合上层的毛玻璃效果，能产生非常漂亮的漫反射光影。
+ * 主页 / 电台 / 我的 这几个入口目前还没有独立内容页时，
+ * 先用纯白底保持和 Apple Music 接近的简洁观感。
  *
  * @param modifier 修饰符
  */
 @Composable
-private fun LiquidGlassBackground(modifier: Modifier = Modifier) {
-    // 将 dp 尺寸统一换成 px，方便直接在 Canvas 中计算位置。
-    val density = LocalDensity.current
-    
-    // 这些参数控制背景色块的大小、密度和整体留白。
-    val tileSize = with(density) { 75.dp.toPx() }
-    val tileGap = with(density) { 22.dp.toPx() }
-    val cornerRadius = with(density) { 24.dp.toPx() }
-    val topPadding = with(density) { 30.dp.toPx() }
-    val sidePadding = with(density) { 30.dp.toPx() }
-
-    // 调色板决定了毛玻璃采样后的色彩倾向。
-    val palette = listOf(
-        Color(0xFFE9425D),
-        Color(0xFFE9923F),
-        Color(0xFF65BE66),
-        Color(0xFF5AB4C0)
+private fun AppPageBackground(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(Color.White)
     )
-
-    Canvas(modifier = modifier.fillMaxSize()) {
-        // 先铺一层浅灰底，避免纯白背景下毛玻璃层次过弱。
-        drawRect(color = Color(0xFFE6E6E6))
-
-        val step = tileSize + tileGap
-        val rowCount = ((size.height - topPadding) / step).toInt() + 2
-
-        // 用规则矩阵生成整块背景，效果稳定，也便于后续替换成更复杂的动态背景。
-        for (row in 0 until rowCount) {
-            val y = topPadding + row * step
-            for (column in 0 until palette.size) {
-                val x = sidePadding + column * step
-                drawRoundRect(
-                    // 这里每列直接取对应色值，形成稳定的纵向色带。
-                    color = palette[column],
-                    topLeft = Offset(x, y),
-                    size = Size(tileSize, tileSize),
-                    cornerRadius = CornerRadius(cornerRadius, cornerRadius)
-                )
-            }
-        }
-    }
 }

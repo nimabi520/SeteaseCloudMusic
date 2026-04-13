@@ -50,7 +50,7 @@ import coil.compose.AsyncImage
 import com.example.seteasecloudmusic.feature.search.domain.SearchSuggestions
 import com.example.seteasecloudmusic.core.model.Track
 
-private val PageBackground = Color(0xFFF5F5F7)
+private val PageBackground = Color.White
 private val PrimaryText = Color(0xFF111111)
 private val SecondaryText = Color(0xFF909094)
 private val DividerColor = Color(0xFFE2E2E6)
@@ -110,11 +110,15 @@ private sealed interface SearchRowItem {
 
 @Composable
 fun SearchRoute(
-    viewModel: SearchViewModel
+    viewModel: SearchViewModel,
+    topContentPadding: Dp = 18.dp,
+    bottomContentPadding: Dp = 180.dp
 ) {
     val uiState by viewModel.uiState.collectAsState()
     SearchScreenContent(
         uiState = uiState,
+        topContentPadding = topContentPadding,
+        bottomContentPadding = bottomContentPadding,
         onSuggestionClick = { viewModel.onSuggestionClick(it) },
         onTrackClick = { viewModel.onTrackClick(it) },
         onRetryClick = { viewModel.onRetryClick() }
@@ -124,6 +128,8 @@ fun SearchRoute(
 @Composable
 fun SearchScreenContent(
     uiState: SearchUiState,
+    topContentPadding: Dp,
+    bottomContentPadding: Dp = 180.dp,
     onSuggestionClick: (String) -> Unit,
     onTrackClick: (Track) -> Unit,
     onRetryClick: () -> Unit
@@ -138,7 +144,7 @@ fun SearchScreenContent(
         modifier = Modifier
             .fillMaxSize()
             .background(PageBackground)
-            .padding(top = 18.dp, bottom = 180.dp)
+            .padding(top = topContentPadding, bottom = bottomContentPadding)
     ) {
         SearchTabsRow(
             selectedTab = selectedTab,
