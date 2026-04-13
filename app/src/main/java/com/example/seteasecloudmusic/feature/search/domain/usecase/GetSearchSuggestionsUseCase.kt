@@ -1,5 +1,7 @@
 package com.example.seteasecloudmusic.feature.search.domain
 
+import javax.inject.Inject
+
 /**
  * `domain.usecase` 模块说明：
  *
@@ -11,7 +13,7 @@ package com.example.seteasecloudmusic.feature.search.domain
  * 2. 做最基础的输入校验与清洗。
  * 3. 调用 `MusicRepository` 返回搜索建议（包含单曲、歌手、歌单）。
  */
-class GetSearchSuggestionsUseCase(
+class GetSearchSuggestionsUseCase @Inject constructor(
     private val searchRepository: SearchRepository
 ) {
     suspend operator fun invoke(

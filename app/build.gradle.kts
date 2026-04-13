@@ -1,6 +1,9 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.compose.compiler)
+
+    id("com.google.devtools.ksp")
+    id("com.google.dagger.hilt.android")
 }
 
 android {
@@ -116,5 +119,12 @@ dependencies {
     implementation("androidx.media3:media3-ui:1.5.1")
 
     implementation("io.coil-kt:coil-compose:2.7.0")
+
+    //hilt依赖注入框架
+    implementation("com.google.dagger:hilt-android:2.59.2")
+    ksp("com.google.dagger:hilt-android-compiler:2.59.2")
+
+    // Hilt 与 Compose Navigation 集成（提供 hiltViewModel()）
+    implementation("androidx.hilt:hilt-navigation-compose:1.3.0")
 
 }

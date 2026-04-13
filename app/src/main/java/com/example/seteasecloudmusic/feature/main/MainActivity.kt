@@ -4,6 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import dagger.hilt.android.AndroidEntryPoint
 
 /**
  * `presentation` 模块说明：
@@ -16,6 +17,7 @@ import androidx.activity.enableEdgeToEdge
  * 2. 打开沉浸式边到边布局。
  * 3. 把应用的根界面 `AppNavigation()` 挂载出来。
  */
+@AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     /**
      * 创建页面并挂载应用导航。

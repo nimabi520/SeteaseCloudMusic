@@ -8,6 +8,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import com.example.seteasecloudmusic.feature.main.MainActivity
+import dagger.hilt.android.AndroidEntryPoint
 
 /**
  * 后台播放服务：
@@ -15,6 +16,7 @@ import com.example.seteasecloudmusic.feature.main.MainActivity
  * 2. 持有 MediaSession，用于通知栏、锁屏、耳机按键控制
  * 3. 由系统在后台托管播放能力
  */
+@AndroidEntryPoint
 class MusicService : MediaSessionService() {
 
     // 播放器实例：真正负责音频播放
