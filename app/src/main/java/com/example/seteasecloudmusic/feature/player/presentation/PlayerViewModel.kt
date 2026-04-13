@@ -1,9 +1,10 @@
-package com.example.seteasecloudmusic.player.presentation
+package com.example.seteasecloudmusic.feature.player.presentation
 
 import androidx.lifecycle.ViewModel
-import com.example.seteasecloudmusic.domain.model.Track
-import com.example.seteasecloudmusic.player.playback.MusicPlayerController
-import com.example.seteasecloudmusic.player.playback.PlaybackState
+import com.example.seteasecloudmusic.core.model.Track
+import com.example.seteasecloudmusic.core.player.MusicPlayerController
+import com.example.seteasecloudmusic.core.player.PlaybackState
+import com.example.seteasecloudmusic.core.player.PlayerStatus
 import kotlinx.coroutines.flow.StateFlow
 
 /**
@@ -24,21 +25,23 @@ class PlayerViewModel(
         controller.connect()
     }
 
-    /** 请求播放指定歌曲（内部会先准备 URL） */
-    fun play(track: Track) {
-        controller.play(track)
+    fun onPlayPause() {
+        when(playbackState.value.status) {
+            PlayerStatus.PLAYING -> controller.pause()
+            PlayerStatus.PAUSED -> controller.pause()
+            PlayerStatus.BUFFERING -> Unit
+            PlayerStatus.IDLE,
+            PlayerStatus.ENDED,
+            PlayerStatus.ERROR ->  controller.replayCurrent()
+        }
     }
 
-    fun pause() {
-        controller.pause()
+    fun onNext() {
+        controller.playNext()
     }
 
-    fun resume() {
-        controller.resume()
-    }
-
-    fun stop() {
-        controller.stop()
+    fun onPrevious() {
+        controller.playPrevious()
     }
 
     fun seekTo(positionMs: Int) {

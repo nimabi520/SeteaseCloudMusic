@@ -46,6 +46,7 @@ import com.example.seteasecloudmusic.core.player.PlaybackState
 import com.example.seteasecloudmusic.core.player.PlayerStatus
 import com.example.seteasecloudmusic.feature.search.presentation.SearchRoute
 import com.example.seteasecloudmusic.feature.search.presentation.SearchViewModel
+import com.example.seteasecloudmusic.feature.player.presentation.NowPlayingScreen
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.backdrop.backdrops.layerBackdrop
@@ -210,6 +211,8 @@ fun AppNavigation() {
 
     val searchUiState by searchViewModel.uiState.collectAsState()
     val playbackState by searchViewModel.playbackState.collectAsState()
+
+    var showNowPlaying by remember { mutableStateOf(false) }
 
     // 背景底色会参与毛玻璃采样，决定整个导航栏的基础明度。
     val backgroundColor = Color.White
@@ -642,6 +645,7 @@ fun AppNavigation() {
             playbackState = playbackState,
             onPlayPauseClick = { searchViewModel.onMiniPlayerPlayPause() },
             onNextClick = { searchViewModel.onMiniPlayerNext() },
+            onBarClick = { showNowPlaying = true },
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .windowInsetsPadding(WindowInsets.navigationBars)
@@ -665,6 +669,17 @@ fun AppNavigation() {
                 .windowInsetsPadding(WindowInsets.navigationBars)
                 .padding(bottom = 24.dp + animatedImeOffset) // 底部导航栏间距 + 键盘偏移
         )
+
+        if (showNowPlaying) {
+            NowPlayingScreen(
+                playbackState = playbackState,
+                onClose = { showNowPlaying = false },
+                onPlayPause = { searchViewModel.onMiniPlayerPlayPause() },
+                onNext = { searchViewModel.onMiniPlayerNext() },
+                onPrevious = { /* TODO: 接 PlayerViewModel 或 controller 后补 */ },
+                onSeekTo = { /* TODO: 接 PlayerViewModel 或 controller 后补 */ }
+            )
+        }
     }
 }
 
@@ -694,6 +709,7 @@ private fun SearchMiniPlayerBar(
     playbackState: PlaybackState,
     onPlayPauseClick: () -> Unit,
     onNextClick: () -> Unit,
+    onBarClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val hasTrack = playbackState.currentTrack != null
@@ -706,6 +722,7 @@ private fun SearchMiniPlayerBar(
         modifier = modifier
             .fillMaxWidth()
             .height(54.dp)
+            .clickable { onBarClick() }
             .drawBackdrop(
                 backdrop = backdrop,
                 shape = { RoundedRectangle(cornerRadius) },
