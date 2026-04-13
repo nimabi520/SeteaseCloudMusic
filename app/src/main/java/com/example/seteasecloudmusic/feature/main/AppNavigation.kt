@@ -5,6 +5,7 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -12,6 +13,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.PressInteraction
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicTextField
 
 import androidx.compose.material.icons.Icons
@@ -28,7 +30,10 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.Key
@@ -44,6 +49,7 @@ import androidx.compose.ui.util.lerp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.example.seteasecloudmusic.core.player.PlaybackState
 import com.example.seteasecloudmusic.core.player.PlayerStatus
+import coil.compose.AsyncImage
 import com.example.seteasecloudmusic.feature.search.presentation.SearchRoute
 import com.example.seteasecloudmusic.feature.search.presentation.SearchViewModel
 import com.example.seteasecloudmusic.feature.player.presentation.NowPlayingScreen
@@ -206,7 +212,11 @@ fun GlassSlider(
  * 核心使用了 [com.kyant.backdrop] 库来实现高性能的实时模糊与透镜效果。
  */
 @Composable
-fun AppNavigation() {
+fun AppNavigation(
+    avatarUrl: String? = null,
+    displayName: String? = null,
+    onAvatarClick: (() -> Unit)? = null
+) {
     val searchViewModel: SearchViewModel = hiltViewModel()
 
     val searchUiState by searchViewModel.uiState.collectAsState()
@@ -311,6 +321,17 @@ fun AppNavigation() {
                 .align(Alignment.TopStart)
                 .windowInsetsPadding(WindowInsets.statusBars)
                 .padding(start = 24.dp, top = 16.dp)
+        )
+
+        UserAvatarButton(
+            avatarUrl = avatarUrl,
+            displayName = displayName,
+            onClick = { onAvatarClick?.invoke() },
+            enabled = onAvatarClick != null,
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .windowInsetsPadding(WindowInsets.statusBars)
+                .padding(end = 24.dp, top = 12.dp)
         )
 
         // --- 顶层悬浮导航栏及独立搜索按钮 ---
@@ -697,6 +718,97 @@ private fun LargePageTitle(
         fontWeight = FontWeight.Black,
         modifier = modifier
     )
+}
+
+@Composable
+private fun UserAvatarButton(
+    avatarUrl: String?,
+    displayName: String?,
+    onClick: () -> Unit,
+    enabled: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val monogram = remember(displayName) { buildAvatarMonogram(displayName) }
+    val avatarDescription = if (displayName.isNullOrBlank()) "用户头像" else "用户头像，$displayName"
+    val hasAvatarImage = !avatarUrl.isNullOrBlank()
+    val hasMonogram = !monogram.isNullOrBlank()
+    val isGuestPlaceholder = !hasAvatarImage && !hasMonogram
+    val appleMusicRed = Color(0xFFFA233B)
+
+    if (isGuestPlaceholder) {
+        Box(
+            modifier = modifier
+                .size(46.dp)
+                .border(2.dp, appleMusicRed, CircleShape)
+                .clickable(enabled = enabled, onClick = onClick),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Person,
+                contentDescription = avatarDescription,
+                tint = appleMusicRed,
+                modifier = Modifier.size(22.dp)
+            )
+        }
+        return
+    }
+
+    Box(
+        modifier = modifier
+            .size(46.dp)
+            .clip(CircleShape)
+            .background(
+                brush = Brush.verticalGradient(
+                    colors = listOf(Color(0xFF5A5678), Color(0xFF2D2948))
+                )
+            )
+            .border(1.dp, Color.White.copy(alpha = 0.42f), CircleShape)
+            .clickable(enabled = enabled, onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        if (hasAvatarImage) {
+            AsyncImage(
+                model = avatarUrl,
+                contentDescription = avatarDescription,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(CircleShape),
+                contentScale = ContentScale.Crop
+            )
+        } else if (hasMonogram) {
+            Text(
+                text = monogram,
+                color = Color.White,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 0.3.sp
+            )
+        } else {
+            Icon(
+                imageVector = Icons.Filled.Person,
+                contentDescription = avatarDescription,
+                tint = Color.White,
+                modifier = Modifier.size(20.dp)
+            )
+        }
+    }
+}
+
+private fun buildAvatarMonogram(displayName: String?): String? {
+    val normalized = displayName?.trim().orEmpty()
+    if (normalized.isEmpty()) return null
+
+    val parts = normalized
+        .split(Regex("\\s+"))
+        .filter { it.isNotBlank() }
+
+    return if (parts.size >= 2) {
+        val first = parts.first().firstOrNull() ?: return null
+        val last = parts.last().firstOrNull() ?: return null
+        "$first$last".uppercase()
+    } else {
+        normalized.take(2).uppercase()
+    }
 }
 
 /**
