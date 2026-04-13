@@ -3,12 +3,17 @@ package com.example.seteasecloudmusic.core.network
 import android.util.Log
 import com.example.seteasecloudmusic.BuildConfig
 import com.example.seteasecloudmusic.feature.search.data.NeteaseMusicService
+import dagger.Module
+import dagger.Provides
+import dagger.hilt.InstallIn
+import dagger.hilt.components.SingletonComponent
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import java.io.IOException
 import java.util.concurrent.TimeUnit
+import javax.inject.Singleton
 
 /**
  * `di` 模块说明：
@@ -22,17 +27,23 @@ import java.util.concurrent.TimeUnit
  * 2. 配置 OkHttp 超时等网络参数。
  * 3. 创建 Retrofit 并产出 `NeteaseMusicService`。
  */
+@Module
+@InstallIn(SingletonComponent::class)
 class NetworkModule {
 
     /**
      * API 基础地址。
      */
-    private fun provideBaseUrl(): String = "http://57.158.26.135:3000/";
+    @Provides
+    @Singleton
+    fun provideBaseUrl(): String = "http://57.158.26.135:3000/";
 
     /**
      * 提供统一超时配置的 HTTP 客户端。
      */
-    private fun provideHttpClient(): OkHttpClient {
+    @Provides
+    @Singleton
+    fun provideHttpClient(): OkHttpClient {
         /**
          * 随机中国 IP 参数拦截器：
          * 为所有请求统一附加 randomCNIP=true，规避部分环境下的 460 限制。
@@ -114,7 +125,9 @@ class NetworkModule {
     /**
      * 构建 Retrofit 实例并挂载 Gson 转换器。
      */
-    private fun provideRetrofit(client: OkHttpClient): Retrofit {
+    @Provides
+    @Singleton
+    fun provideRetrofit(client: OkHttpClient): Retrofit {
         return Retrofit.Builder()
             .baseUrl(provideBaseUrl())
             .client(client)
@@ -125,9 +138,16 @@ class NetworkModule {
     /**
      * 暴露音乐 API 服务实例。
      */
-    fun provideNeteaseMusicService(): NeteaseMusicService {
-        val client: OkHttpClient = provideHttpClient()
-        val retrofit: Retrofit = provideRetrofit(client)
-        return retrofit.create(NeteaseMusicService::class.java)
-    }
+    @Provides
+    @Singleton
+    fun provideNeteaseMusicService(retrofit: Retrofit): NeteaseMusicService =
+        retrofit.create(NeteaseMusicService::class.java)
+
+    //改成依赖注入的方式后，提供 NeteaseMusicService 的方法可以直接注入 Retrofit 实例，无需手动调用 provideHttpClient 和 provideRetrofit。
+
+//    fun provideNeteaseMusicService(): NeteaseMusicService {
+//        val client: OkHttpClient = provideHttpClient()
+//        val retrofit: Retrofit = provideRetrofit(client)
+//        return retrofit.create(NeteaseMusicService::class.java)
+//    }
 }

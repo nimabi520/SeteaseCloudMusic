@@ -3,16 +3,19 @@ package com.example.seteasecloudmusic.feature.search.presentation
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.seteasecloudmusic.core.player.MusicPlayerController
+import com.example.seteasecloudmusic.core.player.PlayerStatus
 import com.example.seteasecloudmusic.feature.search.domain.SearchSuggestions
 import com.example.seteasecloudmusic.core.model.Track
 import com.example.seteasecloudmusic.feature.search.domain.GetSearchSuggestionsUseCase
 import com.example.seteasecloudmusic.feature.search.domain.SearchMusicUseCase
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 /**
  * 搜索页 UI 状态：
@@ -30,19 +33,25 @@ data class SearchUiState(
     val errorMessage: String? = null
 )
 
-class SearchViewModel(
+@HiltViewModel
+class SearchViewModel @Inject constructor(
     private val searchMusicUseCase: SearchMusicUseCase,
     private val getSearchSuggestionsUseCase: GetSearchSuggestionsUseCase,
     private val musicPlayerController: MusicPlayerController
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(SearchUiState())
     val uiState = _uiState.asStateFlow()
+    val playbackState = musicPlayerController.playbackState
 
     private var lastSubmittedQuery: String? = null
     // 正式搜索和联想建议各自维护独立 Job，避免互相取消或状态覆盖。
     private var searchJob: Job? = null
     private var suggestionJob: Job? = null
     private var playbackJob: Job? = null
+
+    init {
+        musicPlayerController.connect()
+    }
 
     companion object {
         // 输入联想不需要每次敲字都立刻请求，做一层轻量防抖更节省接口调用。
@@ -403,4 +412,30 @@ class SearchViewModel(
         }
     }
 
+    /**
+     * 迷你播放器的播放/暂停按钮。
+     */
+    fun onMiniPlayerPlayPause() {
+        when (playbackState.value.status) {
+            PlayerStatus.PLAYING -> musicPlayerController.pause()
+            PlayerStatus.PAUSED -> musicPlayerController.resume()
+            PlayerStatus.BUFFERING -> Unit
+            PlayerStatus.IDLE,
+            PlayerStatus.ENDED,
+            PlayerStatus.ERROR -> musicPlayerController.replayCurrent()
+        }
+    }
+
+    /**
+     * 迷你播放器的下一首按钮。
+     */
+    fun onMiniPlayerNext() {
+        musicPlayerController.playNext()
+    }
+
+    override fun onCleared() {
+        playbackJob?.cancel()
+        musicPlayerController.release()
+        super.onCleared()
+    }
 }

@@ -11,6 +11,7 @@ import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.example.seteasecloudmusic.core.model.Track
 import com.example.seteasecloudmusic.feature.search.domain.PrepareTrackForPlaybackUseCase
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -25,6 +26,8 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import javax.inject.Inject
+import javax.inject.Singleton
 
 enum class PlayerStatus { IDLE, BUFFERING, PLAYING, PAUSED, ENDED, ERROR }
 
@@ -38,12 +41,14 @@ data class PlaybackState(
     val currentQueueIndex: Int = -1
 )
 
-class MusicPlayerController(
-    private val context: Context,
+@Singleton
+class MusicPlayerController @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val prepareTrackForPlaybackUseCase: PrepareTrackForPlaybackUseCase,
-    private val mainDispatcher: CoroutineDispatcher = Dispatchers.Main,
-    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
+
 ) {
+    private val mainDispatcher: CoroutineDispatcher = Dispatchers.Main
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
     // 控制器自己的协程域：用于异步连接服务、拉 URL、更新状态
     private val scope = CoroutineScope(SupervisorJob() + mainDispatcher)
 

@@ -1,8 +1,9 @@
 package com.example.seteasecloudmusic.feature.search.domain
 
 import com.example.seteasecloudmusic.core.model.Track
+import javax.inject.Inject
 
-class PrepareTrackForPlaybackUseCase (
+class PrepareTrackForPlaybackUseCase @Inject constructor(
     private val getTrackUrlUseCase: GetTrackUrlUseCase
 ) {
     suspend operator fun invoke(track: Track): Result<Track> {
