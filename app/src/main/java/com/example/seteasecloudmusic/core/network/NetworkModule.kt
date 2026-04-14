@@ -1,11 +1,15 @@
 package com.example.seteasecloudmusic.core.network
 
+import android.content.Context
 import android.util.Log
 import com.example.seteasecloudmusic.BuildConfig
+import com.example.seteasecloudmusic.core.network.interceptor.AuthInterceptor
+import com.example.seteasecloudmusic.feature.auth.data.AuthService
 import com.example.seteasecloudmusic.feature.search.data.NeteaseMusicService
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
+import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
@@ -43,7 +47,7 @@ class NetworkModule {
      */
     @Provides
     @Singleton
-    fun provideHttpClient(): OkHttpClient {
+    fun provideHttpClient(@ApplicationContext context: Context): OkHttpClient {
         /**
          * 随机中国 IP 参数拦截器：
          * 为所有请求统一附加 randomCNIP=true，规避部分环境下的 460 限制。
@@ -115,6 +119,8 @@ class NetworkModule {
             .addInterceptor(randomCnIpInterceptor)
             // 先补公共请求头，确保后续拦截器拿到的是完整请求。
             .addInterceptor(commonHeadersInterceptor)
+            // 自动管理 Cookie（登录态）。
+            .addInterceptor(AuthInterceptor(context))
             // 调试阶段输出请求信息，便于定位网络问题。
             .addInterceptor(loggingInterceptor)
             // 最后统一兜底处理服务端错误响应。
@@ -142,6 +148,14 @@ class NetworkModule {
     @Singleton
     fun provideNeteaseMusicService(retrofit: Retrofit): NeteaseMusicService =
         retrofit.create(NeteaseMusicService::class.java)
+
+    /**
+     * 暴露认证 API 服务实例。
+     */
+    @Provides
+    @Singleton
+    fun provideAuthService(retrofit: Retrofit): AuthService =
+        retrofit.create(AuthService::class.java)
 
     //改成依赖注入的方式后，提供 NeteaseMusicService 的方法可以直接注入 Retrofit 实例，无需手动调用 provideHttpClient 和 provideRetrofit。
 

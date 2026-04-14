@@ -56,6 +56,7 @@ import com.example.seteasecloudmusic.core.player.PlaybackState
 import com.example.seteasecloudmusic.core.player.PlayerStatus
 import coil.compose.AsyncImage
 import com.example.seteasecloudmusic.feature.auth.presentation.AccountLoginSheetContent
+import com.example.seteasecloudmusic.feature.auth.presentation.AuthViewModel
 import com.example.seteasecloudmusic.feature.search.presentation.SearchRoute
 import com.example.seteasecloudmusic.feature.search.presentation.SearchViewModel
 import com.example.seteasecloudmusic.feature.player.presentation.NowPlayingScreen
@@ -225,13 +226,21 @@ fun AppNavigation(
     onAvatarClick: (() -> Unit)? = null
 ) {
     val searchViewModel: SearchViewModel = hiltViewModel()
+    val authViewModel: AuthViewModel = hiltViewModel()
 
     val searchUiState by searchViewModel.uiState.collectAsState()
     val playbackState by searchViewModel.playbackState.collectAsState()
+    val authUiState by authViewModel.uiState.collectAsState()
 
     var showNowPlaying by remember { mutableStateOf(false) }
     var showAccountSheet by remember { mutableStateOf(false) }
     val accountSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    LaunchedEffect(authViewModel.dismissSheet) {
+        authViewModel.dismissSheet.collect {
+            showAccountSheet = false
+        }
+    }
 
     // 背景底色会参与毛玻璃采样，决定整个导航栏的基础明度。
     val backgroundColor = Color.White
@@ -340,8 +349,8 @@ fun AppNavigation(
         }
 
         UserAvatarButton(
-            avatarUrl = avatarUrl,
-            displayName = displayName,
+            avatarUrl = authUiState.authSession?.avatarUrl,
+            displayName = authUiState.authSession?.nickname,
             onClick = {
                 showAccountSheet = true
                 onAvatarClick?.invoke()
@@ -734,7 +743,8 @@ fun AppNavigation(
                     modifier = Modifier
                         .fillMaxWidth()
                         .navigationBarsPadding()
-                        .padding(bottom = 8.dp)
+                        .padding(bottom = 8.dp),
+                    viewModel = authViewModel
                 )
             }
         }

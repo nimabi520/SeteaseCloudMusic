@@ -1,10 +1,13 @@
 package com.example.seteasecloudmusic.feature.auth.presentation
 
+import android.graphics.BitmapFactory
+import android.util.Base64
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -30,6 +33,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -41,50 +45,48 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.seteasecloudmusic.feature.auth.usecase.AuthInputValidator
+import androidx.hilt.navigation.compose.hiltViewModel
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
-
-private enum class AccountPanel {
-    METHODS,
-    CAPTCHA,
-    QR
-}
 
 @Composable
 fun AccountLoginSheetContent(
     onDismiss: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    viewModel: AuthViewModel = hiltViewModel()
 ) {
-    var panel by rememberSaveable { mutableStateOf(AccountPanel.METHODS.name) }
-    var phone by rememberSaveable { mutableStateOf("") }
-    var captcha by rememberSaveable { mutableStateOf("") }
-    var helperText by rememberSaveable { mutableStateOf<String?>(null) }
-    var qrHint by rememberSaveable { mutableStateOf("等待扫码登录") }
-
+    val uiState by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
-    fun showSnack(message: String) {
-        scope.launch {
+    LaunchedEffect(viewModel.snackbarMessage) {
+        viewModel.snackbarMessage.collectLatest { message ->
             snackbarHostState.showSnackbar(message)
         }
     }
 
-    val activePanel = remember(panel) { AccountPanel.valueOf(panel) }
+    LaunchedEffect(viewModel.dismissSheet) {
+        viewModel.dismissSheet.collectLatest {
+            onDismiss()
+        }
+    }
+
     val red = Color(0xFFFA233B)
     val secondary = Color(0xFF8D8D93)
 
@@ -100,7 +102,7 @@ fun AccountLoginSheetContent(
             Spacer(modifier = Modifier.height(14.dp))
 
             AnimatedContent(
-                targetState = activePanel,
+                targetState = uiState.panel,
                 transitionSpec = {
                     fadeIn(animationSpec = tween(220, delayMillis = 30)) togetherWith
                         fadeOut(animationSpec = tween(140))
@@ -108,82 +110,44 @@ fun AccountLoginSheetContent(
                 label = "accountPanelTransition"
             ) { current ->
                 when (current) {
-                    AccountPanel.METHODS -> {
+                    AuthPanel.METHODS -> {
                         MethodSelectionPanel(
                             red = red,
                             secondary = secondary,
-                            onCaptchaClick = {
-                                helperText = null
-                                panel = AccountPanel.CAPTCHA.name
-                            },
-                            onQrClick = {
-                                helperText = null
-                                panel = AccountPanel.QR.name
-                            },
+                            onCaptchaClick = { viewModel.onCaptchaPanelOpened() },
+                            onQrClick = { viewModel.onQrPanelOpened() },
                             onSettingsClick = {
-                                showSnack("音乐设置功能开发中")
+                                scope.launch {
+                                    snackbarHostState.showSnackbar("音乐设置功能开发中")
+                                }
                             }
                         )
                     }
 
-                    AccountPanel.CAPTCHA -> {
+                    AuthPanel.CAPTCHA -> {
                         CaptchaPanel(
                             red = red,
-                            helperText = helperText,
-                            phone = phone,
-                            captcha = captcha,
-                            onPhoneChange = {
-                                helperText = null
-                                phone = it.filter(Char::isDigit).take(11)
-                            },
-                            onCaptchaChange = {
-                                helperText = null
-                                captcha = it.filter(Char::isDigit).take(6)
-                            },
-                            onBack = {
-                                helperText = null
-                                panel = AccountPanel.METHODS.name
-                            },
-                            onSendCaptcha = {
-                                val normalizedPhone = AuthInputValidator.normalizePhone(phone)
-                                if (!AuthInputValidator.isValidCnPhone(normalizedPhone)) {
-                                    helperText = "请输入正确的手机号"
-                                    return@CaptchaPanel
-                                }
-                                showSnack("验证码发送接口待接入")
-                            },
-                            onLogin = {
-                                val normalizedPhone = AuthInputValidator.normalizePhone(phone)
-                                val normalizedCaptcha = AuthInputValidator.normalizeCaptcha(captcha)
-                                if (!AuthInputValidator.isValidCnPhone(normalizedPhone)) {
-                                    helperText = "请输入正确的手机号"
-                                    return@CaptchaPanel
-                                }
-                                if (!AuthInputValidator.isValidCaptcha(normalizedCaptcha)) {
-                                    helperText = "验证码必须是 6 位数字"
-                                    return@CaptchaPanel
-                                }
-                                showSnack("验证码登录接口待接入")
-                            }
+                            helperText = uiState.errorMessage,
+                            phone = uiState.phone,
+                            captcha = uiState.captcha,
+                            isLoading = uiState.isLoading,
+                            onPhoneChange = { viewModel.onPhoneChanged(it) },
+                            onCaptchaChange = { viewModel.onCaptchaChanged(it) },
+                            onBack = { viewModel.onBackToMethods() },
+                            onSendCaptcha = { viewModel.onSendCaptcha() },
+                            onLogin = { viewModel.onCaptchaLogin() }
                         )
                     }
 
-                    AccountPanel.QR -> {
+                    AuthPanel.QR -> {
                         QrPanel(
                             red = red,
                             secondary = secondary,
-                            qrHint = qrHint,
-                            onBack = {
-                                panel = AccountPanel.METHODS.name
-                            },
-                            onRefresh = {
-                                qrHint = "二维码已刷新（占位）"
-                                showSnack("二维码刷新接口待接入")
-                            },
-                            onSimulateScan = {
-                                qrHint = "等待在手机上确认（占位）"
-                                showSnack("二维码轮询接口待接入")
-                            }
+                            qrHint = uiState.qrHint,
+                            qrImageBase64 = uiState.qrLoginStart?.qrImageBase64,
+                            isLoading = uiState.isLoading,
+                            onBack = { viewModel.onBackToMethods() },
+                            onRefresh = { viewModel.onRefreshQr() }
                         )
                     }
                 }
@@ -261,7 +225,7 @@ private fun MethodSelectionPanel(
         modifier = Modifier.fillMaxWidth()
     ) {
         LoginMethodRow(
-            text = "手机验证码登录...",
+            text = "手机验证码登录",
             red = red,
             onClick = onCaptchaClick
         )
@@ -360,6 +324,7 @@ private fun CaptchaPanel(
     helperText: String?,
     phone: String,
     captcha: String,
+    isLoading: Boolean,
     onPhoneChange: (String) -> Unit,
     onCaptchaChange: (String) -> Unit,
     onBack: () -> Unit,
@@ -431,18 +396,28 @@ private fun CaptchaPanel(
                 OutlinedButton(
                     onClick = onSendCaptcha,
                     shape = RoundedCornerShape(16.dp),
+                    enabled = !isLoading,
                     modifier = Modifier.weight(1f)
                 ) {
-                    Text("发送验证码")
+                    if (isLoading) {
+                        CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                    } else {
+                        Text("发送验证码")
+                    }
                 }
 
                 Button(
                     onClick = onLogin,
                     shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = red),
+                    enabled = !isLoading,
                     modifier = Modifier.weight(1f)
                 ) {
-                    Text("登录")
+                    if (isLoading) {
+                        CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = Color.White)
+                    } else {
+                        Text("登录")
+                    }
                 }
             }
         }
@@ -465,10 +440,21 @@ private fun QrPanel(
     red: Color,
     secondary: Color,
     qrHint: String,
+    qrImageBase64: String?,
+    isLoading: Boolean,
     onBack: () -> Unit,
-    onRefresh: () -> Unit,
-    onSimulateScan: () -> Unit
+    onRefresh: () -> Unit
 ) {
+    val imageBitmap = remember(qrImageBase64) {
+        qrImageBase64?.let { raw ->
+            val base64 = raw.substringAfter(",", raw)
+            runCatching {
+                val bytes = Base64.decode(base64, Base64.DEFAULT)
+                BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
+            }.getOrNull()
+        }
+    }
+
     Column(modifier = Modifier.fillMaxWidth()) {
         PanelTitle(
             title = "二维码登录",
@@ -496,12 +482,20 @@ private fun QrPanel(
                         .border(1.dp, Color(0xFFE5E5EA), RoundedCornerShape(20.dp)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        imageVector = Icons.Filled.QrCode2,
-                        contentDescription = null,
-                        tint = Color(0xFF1F1F21),
-                        modifier = Modifier.size(86.dp)
-                    )
+                    if (imageBitmap != null) {
+                        Image(
+                            bitmap = imageBitmap,
+                            contentDescription = "登录二维码",
+                            modifier = Modifier.size(170.dp)
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Filled.QrCode2,
+                            contentDescription = null,
+                            tint = Color(0xFF1F1F21),
+                            modifier = Modifier.size(86.dp)
+                        )
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(12.dp))
@@ -514,25 +508,16 @@ private fun QrPanel(
 
                 Spacer(modifier = Modifier.height(14.dp))
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                OutlinedButton(
+                    onClick = onRefresh,
+                    shape = RoundedCornerShape(16.dp),
+                    enabled = !isLoading,
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    OutlinedButton(
-                        onClick = onRefresh,
-                        shape = RoundedCornerShape(16.dp),
-                        modifier = Modifier.weight(1f)
-                    ) {
+                    if (isLoading) {
+                        CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                    } else {
                         Text("刷新二维码")
-                    }
-
-                    Button(
-                        onClick = onSimulateScan,
-                        shape = RoundedCornerShape(16.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = red),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text("我已扫码")
                     }
                 }
             }
