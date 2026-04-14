@@ -2,10 +2,7 @@ package com.example.seteasecloudmusic.feature.auth.presentation
 
 import android.graphics.BitmapFactory
 import android.util.Base64
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.togetherWith
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -27,6 +24,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.QrCode2
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Sms
 import androidx.compose.material3.Button
@@ -62,6 +60,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.example.seteasecloudmusic.feature.main.components.UserAvatar
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
@@ -101,24 +100,30 @@ fun AccountLoginSheetContent(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            AnimatedContent(
+            Crossfade(
                 targetState = uiState.panel,
-                transitionSpec = {
-                    fadeIn(animationSpec = tween(220, delayMillis = 30)) togetherWith
-                        fadeOut(animationSpec = tween(140))
-                },
-                label = "accountPanelTransition"
+                animationSpec = tween(220),
+                label = "accountPanelTransition",
+                modifier = Modifier.fillMaxWidth()
             ) { current ->
                 when (current) {
                     AuthPanel.METHODS -> {
                         MethodSelectionPanel(
                             red = red,
                             secondary = secondary,
+                            isLoggedIn = uiState.isLoggedIn,
+                            avatarUrl = uiState.authSession?.avatarUrl,
+                            displayName = uiState.authSession?.nickname,
                             onCaptchaClick = { viewModel.onCaptchaPanelOpened() },
                             onQrClick = { viewModel.onQrPanelOpened() },
                             onSettingsClick = {
                                 scope.launch {
                                     snackbarHostState.showSnackbar("音乐设置功能开发中")
+                                }
+                            },
+                            onProfileClick = {
+                                scope.launch {
+                                    snackbarHostState.showSnackbar("账户详情开发中")
                                 }
                             }
                         )
@@ -214,48 +219,62 @@ private fun Header(onDismiss: () -> Unit) {
 private fun MethodSelectionPanel(
     red: Color,
     secondary: Color,
+    isLoggedIn: Boolean,
+    avatarUrl: String?,
+    displayName: String?,
     onCaptchaClick: () -> Unit,
     onQrClick: () -> Unit,
-    onSettingsClick: () -> Unit
+    onSettingsClick: () -> Unit,
+    onProfileClick: () -> Unit
 ) {
-    Card(
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        LoginMethodRow(
-            text = "手机验证码登录",
-            red = red,
-            onClick = onCaptchaClick
+    if (isLoggedIn) {
+        ProfileCard(
+            avatarUrl = avatarUrl,
+            displayName = displayName,
+            onClick = onProfileClick
         )
 
-        HorizontalDivider(
-            modifier = Modifier.padding(horizontal = 14.dp),
-            color = Color(0xFFE8E8ED),
-            thickness = 1.dp
+        Spacer(modifier = Modifier.height(14.dp))
+    } else {
+        Card(
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            LoginMethodRow(
+                text = "手机验证码登录",
+                red = red,
+                onClick = onCaptchaClick
+            )
+
+            HorizontalDivider(
+                modifier = Modifier.padding(horizontal = 14.dp),
+                color = Color(0xFFE8E8ED),
+                thickness = 1.dp
+            )
+
+            LoginMethodRow(
+                text = "二维码登录",
+                red = red,
+                onClick = onQrClick
+            )
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        Text(
+            text = "账户用于同步你的收藏、播放记录和偏好设置。",
+            color = secondary,
+            fontSize = 14.sp,
+            lineHeight = 20.sp,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 10.dp)
         )
 
-        LoginMethodRow(
-            text = "二维码登录",
-            red = red,
-            onClick = onQrClick
-        )
+        Spacer(modifier = Modifier.height(14.dp))
     }
-
-    Spacer(modifier = Modifier.height(14.dp))
-
-    Text(
-        text = "账户用于同步你的收藏、播放记录和偏好设置。",
-        color = secondary,
-        fontSize = 14.sp,
-        lineHeight = 20.sp,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 10.dp)
-    )
-
-    Spacer(modifier = Modifier.height(14.dp))
 
     Card(
         shape = RoundedCornerShape(24.dp),
@@ -290,6 +309,57 @@ private fun MethodSelectionPanel(
                 fontSize = 18.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = red
+            )
+        }
+    }
+}
+
+@Composable
+private fun ProfileCard(
+    avatarUrl: String?,
+    displayName: String?,
+    onClick: () -> Unit
+) {
+    Card(
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            UserAvatar(
+                avatarUrl = avatarUrl,
+                displayName = displayName,
+                size = 56.dp,
+                showBorder = false
+            )
+            Spacer(modifier = Modifier.size(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = displayName ?: "Setease 用户",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF121212)
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = "账户信息、付款方式和设置",
+                    fontSize = 14.sp,
+                    color = Color(0xFF8D8D93)
+                )
+            }
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                tint = Color(0xFFC7C7CC),
+                modifier = Modifier.size(22.dp)
             )
         }
     }

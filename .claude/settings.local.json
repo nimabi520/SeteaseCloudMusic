@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C \"d:\\\\Program Files\\\\Android\\\\AndroidStudioProjects\\\\SeteaseCloudMusic\" log --oneline -20)",
+      "Bash(git -C \"d:\\\\Program Files\\\\Android\\\\AndroidStudioProjects\\\\SeteaseCloudMusic\" show --stat 509a8f9)",
+      "Bash(git -C \"d:\\\\Program Files\\\\Android\\\\AndroidStudioProjects\\\\SeteaseCloudMusic\" show --stat 4c48cbd)",
+      "Bash(git -C \"d:\\\\Program Files\\\\Android\\\\AndroidStudioProjects\\\\SeteaseCloudMusic\" show --stat 28371e2)"
+    ]
+  }
+}

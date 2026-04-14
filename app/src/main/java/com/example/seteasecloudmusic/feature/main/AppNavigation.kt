@@ -36,9 +36,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.Key
@@ -54,8 +52,8 @@ import androidx.compose.ui.util.lerp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.example.seteasecloudmusic.core.player.PlaybackState
 import com.example.seteasecloudmusic.core.player.PlayerStatus
-import coil.compose.AsyncImage
 import com.example.seteasecloudmusic.feature.auth.presentation.AccountLoginSheetContent
+import com.example.seteasecloudmusic.feature.main.components.UserAvatar
 import com.example.seteasecloudmusic.feature.auth.presentation.AuthViewModel
 import com.example.seteasecloudmusic.feature.search.presentation.SearchRoute
 import com.example.seteasecloudmusic.feature.search.presentation.SearchViewModel
@@ -775,86 +773,23 @@ private fun UserAvatarButton(
     enabled: Boolean,
     modifier: Modifier = Modifier
 ) {
-    val monogram = remember(displayName) { buildAvatarMonogram(displayName) }
-    val avatarDescription = if (displayName.isNullOrBlank()) "用户头像" else "用户头像，$displayName"
-    val hasAvatarImage = !avatarUrl.isNullOrBlank()
-    val hasMonogram = !monogram.isNullOrBlank()
-    val isGuestPlaceholder = !hasAvatarImage && !hasMonogram
-    val appleMusicRed = Color(0xFFFA233B)
-
-    if (isGuestPlaceholder) {
-        Box(
-            modifier = modifier
-                .size(46.dp)
-                .border(2.dp, appleMusicRed, CircleShape)
-                .clickable(enabled = enabled, onClick = onClick),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = Icons.Filled.Person,
-                contentDescription = avatarDescription,
-                tint = appleMusicRed,
-                modifier = Modifier.size(22.dp)
-            )
-        }
-        return
-    }
+    val hasDisplayName = !displayName.isNullOrBlank()
+    val hasAvatar = !avatarUrl.isNullOrBlank()
+    val isGuest = !hasAvatar && !hasDisplayName
 
     Box(
         modifier = modifier
-            .size(46.dp)
-            .clip(CircleShape)
-            .background(
-                brush = Brush.verticalGradient(
-                    colors = listOf(Color(0xFF5A5678), Color(0xFF2D2948))
-                )
-            )
-            .border(1.dp, Color.White.copy(alpha = 0.42f), CircleShape)
             .clickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
-        if (hasAvatarImage) {
-            AsyncImage(
-                model = avatarUrl,
-                contentDescription = avatarDescription,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clip(CircleShape),
-                contentScale = ContentScale.Crop
-            )
-        } else if (hasMonogram) {
-            Text(
-                text = monogram,
-                color = Color.White,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 0.3.sp
-            )
-        } else {
-            Icon(
-                imageVector = Icons.Filled.Person,
-                contentDescription = avatarDescription,
-                tint = Color.White,
-                modifier = Modifier.size(20.dp)
-            )
-        }
-    }
-}
-
-private fun buildAvatarMonogram(displayName: String?): String? {
-    val normalized = displayName?.trim().orEmpty()
-    if (normalized.isEmpty()) return null
-
-    val parts = normalized
-        .split(Regex("\\s+"))
-        .filter { it.isNotBlank() }
-
-    return if (parts.size >= 2) {
-        val first = parts.first().firstOrNull() ?: return null
-        val last = parts.last().firstOrNull() ?: return null
-        "$first$last".uppercase()
-    } else {
-        normalized.take(2).uppercase()
+        UserAvatar(
+            avatarUrl = avatarUrl,
+            displayName = displayName,
+            size = 46.dp,
+            showBorder = !isGuest,
+            borderWidth = if (isGuest) 0.dp else 1.dp,
+            isGuest = isGuest
+        )
     }
 }
 
