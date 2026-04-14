@@ -1,9 +1,14 @@
 package com.example.seteasecloudmusic.feature.main
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -50,6 +55,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.example.seteasecloudmusic.core.player.PlaybackState
 import com.example.seteasecloudmusic.core.player.PlayerStatus
 import coil.compose.AsyncImage
+import com.example.seteasecloudmusic.feature.auth.presentation.AccountLoginSheetContent
 import com.example.seteasecloudmusic.feature.search.presentation.SearchRoute
 import com.example.seteasecloudmusic.feature.search.presentation.SearchViewModel
 import com.example.seteasecloudmusic.feature.player.presentation.NowPlayingScreen
@@ -211,6 +217,7 @@ fun GlassSlider(
  *
  * 核心使用了 [com.kyant.backdrop] 库来实现高性能的实时模糊与透镜效果。
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AppNavigation(
     avatarUrl: String? = null,
@@ -223,6 +230,8 @@ fun AppNavigation(
     val playbackState by searchViewModel.playbackState.collectAsState()
 
     var showNowPlaying by remember { mutableStateOf(false) }
+    var showAccountSheet by remember { mutableStateOf(false) }
+    val accountSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     // 背景底色会参与毛玻璃采样，决定整个导航栏的基础明度。
     val backgroundColor = Color.White
@@ -315,19 +324,29 @@ fun AppNavigation(
             }
         }
 
-        LargePageTitle(
-            title = pageTitle,
+        AnimatedContent(
+            targetState = pageTitle,
+            transitionSpec = {
+                fadeIn(animationSpec = tween(durationMillis = 220, delayMillis = 30)) togetherWith
+                    fadeOut(animationSpec = tween(durationMillis = 140))
+            },
+            label = "pageTitleTransition",
             modifier = Modifier
                 .align(Alignment.TopStart)
                 .windowInsetsPadding(WindowInsets.statusBars)
                 .padding(start = 24.dp, top = 16.dp)
-        )
+        ) { animatedTitle ->
+            LargePageTitle(title = animatedTitle)
+        }
 
         UserAvatarButton(
             avatarUrl = avatarUrl,
             displayName = displayName,
-            onClick = { onAvatarClick?.invoke() },
-            enabled = onAvatarClick != null,
+            onClick = {
+                showAccountSheet = true
+                onAvatarClick?.invoke()
+            },
+            enabled = true,
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .windowInsetsPadding(WindowInsets.statusBars)
@@ -700,6 +719,24 @@ fun AppNavigation(
                 onPrevious = { /* TODO: 接 PlayerViewModel 或 controller 后补 */ },
                 onSeekTo = { /* TODO: 接 PlayerViewModel 或 controller 后补 */ }
             )
+        }
+
+        if (showAccountSheet) {
+            ModalBottomSheet(
+                onDismissRequest = { showAccountSheet = false },
+                sheetState = accountSheetState,
+                dragHandle = null,
+                containerColor = Color(0xFFF2F2F7),
+                tonalElevation = 0.dp
+            ) {
+                AccountLoginSheetContent(
+                    onDismiss = { showAccountSheet = false },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .navigationBarsPadding()
+                        .padding(bottom = 8.dp)
+                )
+            }
         }
     }
 }
