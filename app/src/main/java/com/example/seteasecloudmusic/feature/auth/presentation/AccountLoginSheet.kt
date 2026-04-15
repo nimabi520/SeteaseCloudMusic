@@ -8,13 +8,17 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -73,6 +77,7 @@ fun AccountLoginSheetContent(
     val uiState by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    val contentScrollState = rememberScrollState()
 
     LaunchedEffect(viewModel.snackbarMessage) {
         viewModel.snackbarMessage.collectLatest { message ->
@@ -92,9 +97,11 @@ fun AccountLoginSheetContent(
     Box(modifier = modifier) {
         Column(
             modifier = Modifier
-                .fillMaxWidth()
+                .fillMaxSize()
+                .verticalScroll(contentScrollState)
+                .imePadding()
                 .padding(horizontal = 16.dp)
-                .padding(top = 12.dp, bottom = 6.dp)
+                .padding(top = 12.dp, bottom = 76.dp)
         ) {
             Header(onDismiss = onDismiss)
 
@@ -227,89 +234,91 @@ private fun MethodSelectionPanel(
     onSettingsClick: () -> Unit,
     onProfileClick: () -> Unit
 ) {
-    if (isLoggedIn) {
-        ProfileCard(
-            avatarUrl = avatarUrl,
-            displayName = displayName,
-            onClick = onProfileClick
-        )
+    Column(modifier = Modifier.fillMaxWidth()) {
+        if (isLoggedIn) {
+            ProfileCard(
+                avatarUrl = avatarUrl,
+                displayName = displayName,
+                onClick = onProfileClick
+            )
 
-        Spacer(modifier = Modifier.height(14.dp))
-    } else {
+            Spacer(modifier = Modifier.height(14.dp))
+        } else {
+            Card(
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                LoginMethodRow(
+                    text = "手机验证码登录",
+                    red = red,
+                    onClick = onCaptchaClick
+                )
+
+                HorizontalDivider(
+                    modifier = Modifier.padding(horizontal = 14.dp),
+                    color = Color(0xFFE8E8ED),
+                    thickness = 1.dp
+                )
+
+                LoginMethodRow(
+                    text = "二维码登录",
+                    red = red,
+                    onClick = onQrClick
+                )
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            Text(
+                text = "账户用于同步你的收藏、播放记录和偏好设置。",
+                color = secondary,
+                fontSize = 14.sp,
+                lineHeight = 20.sp,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 10.dp)
+            )
+
+            Spacer(modifier = Modifier.height(14.dp))
+        }
+
         Card(
             shape = RoundedCornerShape(24.dp),
             colors = CardDefaults.cardColors(containerColor = Color.White),
             elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            LoginMethodRow(
-                text = "手机验证码登录",
-                red = red,
-                onClick = onCaptchaClick
-            )
-
-            HorizontalDivider(
-                modifier = Modifier.padding(horizontal = 14.dp),
-                color = Color(0xFFE8E8ED),
-                thickness = 1.dp
-            )
-
-            LoginMethodRow(
-                text = "二维码登录",
-                red = red,
-                onClick = onQrClick
-            )
-        }
-
-        Spacer(modifier = Modifier.height(14.dp))
-
-        Text(
-            text = "账户用于同步你的收藏、播放记录和偏好设置。",
-            color = secondary,
-            fontSize = 14.sp,
-            lineHeight = 20.sp,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 10.dp)
-        )
-
-        Spacer(modifier = Modifier.height(14.dp))
-    }
-
-    Card(
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onSettingsClick)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 16.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .clickable(onClick = onSettingsClick)
         ) {
-            Box(
+            Row(
                 modifier = Modifier
-                    .size(30.dp)
-                    .background(Color(0xFFFFE8EC), CircleShape),
-                contentAlignment = Alignment.Center
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 16.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(
-                    imageVector = Icons.Filled.Settings,
-                    contentDescription = null,
-                    tint = red,
-                    modifier = Modifier.size(18.dp)
+                Box(
+                    modifier = Modifier
+                        .size(30.dp)
+                        .background(Color(0xFFFFE8EC), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Settings,
+                        contentDescription = null,
+                        tint = red,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.size(12.dp))
+                Text(
+                    text = "音乐设置",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = red
                 )
             }
-            Spacer(modifier = Modifier.size(12.dp))
-            Text(
-                text = "音乐设置",
-                fontSize = 18.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = red
-            )
         }
     }
 }

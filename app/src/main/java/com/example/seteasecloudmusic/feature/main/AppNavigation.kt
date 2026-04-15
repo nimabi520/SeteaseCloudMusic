@@ -12,13 +12,17 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.PressInteraction
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 
 import androidx.compose.material.icons.Icons
@@ -36,6 +40,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -46,6 +51,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.util.lerp
@@ -69,6 +75,7 @@ import com.kyant.backdrop.effects.vibrancy
 import com.kyant.shapes.RoundedRectangle
 import kotlinx.coroutines.launch
 import kotlin.math.absoluteValue
+import kotlin.math.roundToInt
 
 
 
@@ -216,7 +223,6 @@ fun GlassSlider(
  *
  * 核心使用了 [com.kyant.backdrop] 库来实现高性能的实时模糊与透镜效果。
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AppNavigation(
     avatarUrl: String? = null,
@@ -232,11 +238,17 @@ fun AppNavigation(
 
     var showNowPlaying by remember { mutableStateOf(false) }
     var showAccountSheet by remember { mutableStateOf(false) }
-    val accountSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var mountAccountOverlay by remember { mutableStateOf(false) }
 
     LaunchedEffect(authViewModel.dismissSheet) {
         authViewModel.dismissSheet.collect {
             showAccountSheet = false
+        }
+    }
+
+    LaunchedEffect(showAccountSheet) {
+        if (showAccountSheet) {
+            mountAccountOverlay = true
         }
     }
 
@@ -728,23 +740,147 @@ fun AppNavigation(
             )
         }
 
-        if (showAccountSheet) {
-            ModalBottomSheet(
+        if (mountAccountOverlay) {
+            AccountFullScreenOverlay(
+                visible = showAccountSheet,
+                backdrop = backdrop,
                 onDismissRequest = { showAccountSheet = false },
-                sheetState = accountSheetState,
-                dragHandle = null,
-                containerColor = Color(0xFFF2F2F7),
-                tonalElevation = 0.dp
-            ) {
-                AccountLoginSheetContent(
-                    onDismiss = { showAccountSheet = false },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .navigationBarsPadding()
-                        .padding(bottom = 8.dp),
-                    viewModel = authViewModel
+                onDismissed = { mountAccountOverlay = false },
+                viewModel = authViewModel
+            )
+        }
+    }
+}
+
+@Composable
+private fun AccountFullScreenOverlay(
+    visible: Boolean,
+    backdrop: Backdrop,
+    onDismissRequest: () -> Unit,
+    onDismissed: () -> Unit,
+    viewModel: AuthViewModel,
+    modifier: Modifier = Modifier
+) {
+    val density = LocalDensity.current
+    val scrimInteractionSource = remember { MutableInteractionSource() }
+
+    BoxWithConstraints(modifier = modifier.fillMaxSize()) {
+        val hostHeightPx = with(density) { maxHeight.toPx() }
+        val panelHeightPx = hostHeightPx * 0.95f
+        val hiddenOffsetPx = panelHeightPx + with(density) { 24.dp.toPx() }
+
+        val panelOffsetFraction = remember { Animatable(1f) }
+        var dragOffsetPx by remember { mutableFloatStateOf(0f) }
+        var isDragging by remember { mutableStateOf(false) }
+
+        val settledDragOffsetPx by animateFloatAsState(
+            targetValue = if (isDragging || !visible) dragOffsetPx else 0f,
+            animationSpec = spring(stiffness = 550f, dampingRatio = 0.82f),
+            label = "accountPanelDragOffset"
+        )
+        val effectiveDragOffsetPx = if (isDragging) dragOffsetPx else settledDragOffsetPx
+
+        LaunchedEffect(visible) {
+            if (visible) {
+                dragOffsetPx = 0f
+                panelOffsetFraction.animateTo(
+                    targetValue = 0f,
+                    animationSpec = spring(dampingRatio = 0.82f, stiffness = 360f)
                 )
+            } else {
+                panelOffsetFraction.animateTo(
+                    targetValue = 1f,
+                    animationSpec = spring(dampingRatio = 0.88f, stiffness = 460f)
+                )
+                onDismissed()
             }
+        }
+
+        val openProgress = (1f - panelOffsetFraction.value).coerceIn(0f, 1f)
+        val dragProgress = (effectiveDragOffsetPx / panelHeightPx).coerceIn(0f, 1f)
+        val visualProgress = (openProgress * (1f - dragProgress * 0.35f)).coerceIn(0f, 1f)
+        val panelOffsetY = panelOffsetFraction.value * hiddenOffsetPx + effectiveDragOffsetPx
+        val panelShape = RoundedCornerShape(topStart = 34.dp, topEnd = 34.dp)
+
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .drawBackdrop(
+                    backdrop = backdrop,
+                    shape = { RoundedRectangle(0.dp) },
+                    effects = {
+                        blur(8f.dp.toPx())
+                        vibrancy()
+                    },
+                    onDrawSurface = {
+                        drawRect(Color.Black.copy(alpha = 0.32f * visualProgress))
+                    }
+                )
+                .clickable(
+                    enabled = visible,
+                    interactionSource = scrimInteractionSource,
+                    indication = null,
+                    onClick = onDismissRequest
+                )
+        )
+
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .fillMaxHeight(0.95f)
+                .offset { IntOffset(0, panelOffsetY.roundToInt()) }
+                .graphicsLayer {
+                    val scaleXTarget = 1f - dragProgress * 0.018f
+                    val scaleYTarget = 1f - dragProgress * 0.03f
+                    scaleX = scaleXTarget
+                    scaleY = scaleYTarget
+                }
+                .shadow(
+                    elevation = 28.dp,
+                    shape = panelShape,
+                    clip = false
+                )
+                .clip(panelShape)
+                .background(Color(0xFFF2F2F7))
+                .draggable(
+                    orientation = Orientation.Vertical,
+                    state = rememberDraggableState { delta ->
+                        if (delta > 0f || dragOffsetPx > 0f) {
+                            dragOffsetPx = (dragOffsetPx + delta).coerceIn(0f, hiddenOffsetPx)
+                        }
+                    },
+                    enabled = visible,
+                    onDragStarted = { isDragging = true },
+                    onDragStopped = { velocity ->
+                        isDragging = false
+                        val dismissByDistance = dragOffsetPx > panelHeightPx * 0.16f
+                        val dismissByVelocity = velocity > with(density) { 1100.dp.toPx() }
+                        if (dismissByDistance || dismissByVelocity) {
+                            onDismissRequest()
+                        } else {
+                            dragOffsetPx = 0f
+                        }
+                    }
+                )
+        ) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 10.dp)
+                    .size(width = 44.dp, height = 5.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFFD2D2D8))
+            )
+
+            AccountLoginSheetContent(
+                onDismiss = onDismissRequest,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .navigationBarsPadding()
+                    .padding(top = 6.dp),
+                viewModel = viewModel
+            )
         }
     }
 }
