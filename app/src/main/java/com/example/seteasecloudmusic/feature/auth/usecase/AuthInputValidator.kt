@@ -25,8 +25,4 @@ object AuthInputValidator {
         if (email.contains("..")) return false // 禁止连续点
         return true
     }
-
-    fun isValidCaptcha(captcha: String): Boolean {
-        return captcha.length == 6 && captcha.all { it in '0'..'9' }
-    }
 }

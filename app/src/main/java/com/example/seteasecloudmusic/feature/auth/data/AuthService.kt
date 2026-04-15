@@ -1,6 +1,7 @@
 package com.example.seteasecloudmusic.feature.auth.data
 
 import com.example.seteasecloudmusic.feature.auth.data.model.LoginResponse
+import com.example.seteasecloudmusic.feature.auth.data.model.LoginStatusResponse
 import com.example.seteasecloudmusic.feature.auth.data.model.QrCodeResponse
 import com.example.seteasecloudmusic.feature.auth.data.model.QrKeyResponse
 import com.example.seteasecloudmusic.feature.auth.data.model.QrStatusResponse
@@ -46,6 +47,16 @@ interface AuthService {
         @Query("key") key: String,
         @Query("timestamp") timestamp: Long
     ): Response<QrStatusResponse>
+
+    @POST("/login/status")
+    suspend fun getLoginStatus(
+        @Query("timestamp") timestamp: Long
+    ): Response<LoginStatusResponse>
+
+    @POST("/logout")
+    suspend fun logout(
+        @Query("timestamp") timestamp: Long
+    ): Response<BaseResponse>
 }
 
 data class BaseResponse(

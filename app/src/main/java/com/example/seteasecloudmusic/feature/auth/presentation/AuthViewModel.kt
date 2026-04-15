@@ -5,8 +5,10 @@ import androidx.lifecycle.viewModelScope
 import com.example.seteasecloudmusic.feature.auth.domain.model.AuthSession
 import com.example.seteasecloudmusic.feature.auth.domain.model.QrLoginStart
 import com.example.seteasecloudmusic.feature.auth.domain.model.QrStatus
+import com.example.seteasecloudmusic.feature.auth.usecase.LogoutUseCase
 import com.example.seteasecloudmusic.feature.auth.usecase.ObserveAuthStateUseCase
 import com.example.seteasecloudmusic.feature.auth.usecase.PollQrStatusUseCase
+import com.example.seteasecloudmusic.feature.auth.usecase.RefreshSessionUseCase
 import com.example.seteasecloudmusic.feature.auth.usecase.SendCaptchaUseCase
 import com.example.seteasecloudmusic.feature.auth.usecase.StartQrLoginUseCase
 import com.example.seteasecloudmusic.feature.auth.usecase.VerifyCaptchaUseCase
@@ -33,13 +35,28 @@ data class AuthUiState(
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
     val isLoggedIn: Boolean = false,
-    val authSession: AuthSession? = null
+    val authSession: AuthSession? = null,
+    val accountDetailsDestination: AccountDetailsDestination? = null,
+    val personalizedRecommendationEnabled: Boolean = true,
+    val showLogoutConfirmDialog: Boolean = false
 )
 
 enum class AuthPanel {
     METHODS,
     CAPTCHA,
-    QR
+    QR,
+    ACCOUNT_DETAILS,
+    ACCOUNT_DETAIL_SUBPAGE
+}
+
+enum class AccountDetailsDestination(val title: String) {
+    APPLE_ACCOUNT("Apple 账户"),
+    MANAGE_PAYMENT("管理付款方式"),
+    SUBSCRIPTIONS("订阅"),
+    PURCHASE_HISTORY("购买记录"),
+    ADD_FUNDS("为账户充值"),
+    COUNTRY_REGION("国家/地区"),
+    RATINGS_AND_REVIEWS("评分与评论")
 }
 
 @HiltViewModel
@@ -48,7 +65,9 @@ class AuthViewModel @Inject constructor(
     private val verifyCaptchaUseCase: VerifyCaptchaUseCase,
     private val startQrLoginUseCase: StartQrLoginUseCase,
     private val pollQrStatusUseCase: PollQrStatusUseCase,
-    private val observeAuthStateUseCase: ObserveAuthStateUseCase
+    private val observeAuthStateUseCase: ObserveAuthStateUseCase,
+    private val refreshSessionUseCase: RefreshSessionUseCase,
+    private val logoutUseCase: LogoutUseCase
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(AuthUiState())
@@ -61,16 +80,24 @@ class AuthViewModel @Inject constructor(
     val dismissSheet: SharedFlow<Unit> = _dismissSheet.asSharedFlow()
 
     private var qrPollJob: Job? = null
+    private var isRefreshingSessionProfile = false
 
     init {
         viewModelScope.launch {
             observeAuthStateUseCase().collect { session ->
                 _uiState.update {
+                    val isLoggedIn = session?.isLoggedIn == true
+                    val shouldResetDetailsPanel = !isLoggedIn &&
+                        (it.panel == AuthPanel.ACCOUNT_DETAILS || it.panel == AuthPanel.ACCOUNT_DETAIL_SUBPAGE)
                     it.copy(
-                        isLoggedIn = session?.isLoggedIn == true,
-                        authSession = session
+                        isLoggedIn = isLoggedIn,
+                        authSession = session,
+                        panel = if (shouldResetDetailsPanel) AuthPanel.METHODS else it.panel,
+                        accountDetailsDestination = if (isLoggedIn) it.accountDetailsDestination else null,
+                        showLogoutConfirmDialog = if (isLoggedIn) it.showLogoutConfirmDialog else false
                     )
                 }
+                maybeRefreshProfileIfNeeded(session)
             }
         }
     }
@@ -80,7 +107,7 @@ class AuthViewModel @Inject constructor(
     }
 
     fun onCaptchaChanged(captcha: String) {
-        _uiState.update { it.copy(captcha = captcha.filter(Char::isDigit).take(6), errorMessage = null) }
+        _uiState.update { it.copy(captcha = captcha.filter(Char::isDigit), errorMessage = null) }
     }
 
     fun onCaptchaPanelOpened() {
@@ -88,7 +115,8 @@ class AuthViewModel @Inject constructor(
             it.copy(
                 panel = AuthPanel.CAPTCHA,
                 captcha = "",
-                errorMessage = null
+                errorMessage = null,
+                showLogoutConfirmDialog = false
             )
         }
     }
@@ -98,10 +126,90 @@ class AuthViewModel @Inject constructor(
             it.copy(
                 panel = AuthPanel.QR,
                 qrHint = "等待扫码登录",
-                errorMessage = null
+                errorMessage = null,
+                showLogoutConfirmDialog = false
             )
         }
         startQrLogin()
+    }
+
+    fun onAccountDetailsOpened() {
+        if (!_uiState.value.isLoggedIn) return
+        stopQrPolling()
+        _uiState.update {
+            it.copy(
+                panel = AuthPanel.ACCOUNT_DETAILS,
+                accountDetailsDestination = null,
+                errorMessage = null,
+                showLogoutConfirmDialog = false
+            )
+        }
+    }
+
+    fun onAccountDetailsDestinationOpened(destination: AccountDetailsDestination) {
+        _uiState.update {
+            it.copy(
+                panel = AuthPanel.ACCOUNT_DETAIL_SUBPAGE,
+                accountDetailsDestination = destination,
+                showLogoutConfirmDialog = false
+            )
+        }
+    }
+
+    fun onBackFromAccountDetailsSubpage() {
+        _uiState.update {
+            it.copy(
+                panel = AuthPanel.ACCOUNT_DETAILS,
+                accountDetailsDestination = null
+            )
+        }
+    }
+
+    fun onPersonalizedRecommendationToggled(enabled: Boolean) {
+        _uiState.update { it.copy(personalizedRecommendationEnabled = enabled) }
+    }
+
+    fun onRequestLogout() {
+        _uiState.update { it.copy(showLogoutConfirmDialog = true) }
+    }
+
+    fun onDismissLogoutConfirm() {
+        _uiState.update { it.copy(showLogoutConfirmDialog = false) }
+    }
+
+    fun onConfirmLogout() {
+        if (_uiState.value.isLoading) return
+
+        viewModelScope.launch {
+            stopQrPolling()
+            _uiState.update { it.copy(isLoading = true, showLogoutConfirmDialog = false) }
+
+            val result = logoutUseCase()
+
+            _uiState.update {
+                it.copy(
+                    isLoading = false,
+                    panel = AuthPanel.METHODS,
+                    accountDetailsDestination = null,
+                    qrLoginStart = null,
+                    qrHint = "等待扫码登录"
+                )
+            }
+
+            result.fold(
+                onSuccess = {
+                    _snackbarMessage.emit("已退出登录")
+                },
+                onFailure = { error ->
+                    val detail = error.message?.takeIf { it.isNotBlank() }
+                    if (detail == null) {
+                        _snackbarMessage.emit("已退出登录")
+                    } else {
+                        _snackbarMessage.emit("已退出登录（服务端请求失败：$detail）")
+                    }
+                }
+            )
+        }
     }
 
     fun onBackToMethods() {
@@ -111,7 +219,9 @@ class AuthViewModel @Inject constructor(
                 panel = AuthPanel.METHODS,
                 qrLoginStart = null,
                 qrHint = "等待扫码登录",
-                errorMessage = null
+                errorMessage = null,
+                accountDetailsDestination = null,
+                showLogoutConfirmDialog = false
             )
         }
     }
@@ -145,6 +255,7 @@ class AuthViewModel @Inject constructor(
             result.fold(
                 onSuccess = { session ->
                     _uiState.update { it.copy(isLoggedIn = true, authSession = session) }
+                    maybeRefreshProfileIfNeeded(session)
                     _snackbarMessage.emit("登录成功")
                     _dismissSheet.emit(Unit)
                 },
@@ -219,6 +330,7 @@ class AuthViewModel @Inject constructor(
                                         qrHint = "登录成功"
                                     )
                                 }
+                                maybeRefreshProfileIfNeeded(pollResult.session)
                                 _dismissSheet.emit(Unit)
                                 stopQrPolling()
                             }
@@ -237,5 +349,25 @@ class AuthViewModel @Inject constructor(
     private fun stopQrPolling() {
         qrPollJob?.cancel()
         qrPollJob = null
+    }
+
+    private fun maybeRefreshProfileIfNeeded(session: AuthSession?) {
+        if (!needsProfileRefresh(session) || isRefreshingSessionProfile) {
+            return
+        }
+
+        viewModelScope.launch {
+            isRefreshingSessionProfile = true
+            try {
+                refreshSessionUseCase()
+            } finally {
+                isRefreshingSessionProfile = false
+            }
+        }
+    }
+
+    private fun needsProfileRefresh(session: AuthSession?): Boolean {
+        return session?.isLoggedIn == true &&
+            (session.userId == null || session.nickname.isNullOrBlank() || session.avatarUrl.isNullOrBlank())
     }
 }

@@ -36,6 +36,8 @@ interface AuthRepository{
 
     suspend fun guestLogin(): Result<AuthSession>
 
+    suspend fun logout(): Result<Unit>
+
     suspend fun refreshSessionIfNeeded(): Result<AuthSession>
 
     suspend fun sendCaptcha(phone: String): Result<Unit>

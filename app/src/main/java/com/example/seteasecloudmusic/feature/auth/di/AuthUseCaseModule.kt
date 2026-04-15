@@ -3,6 +3,7 @@ package com.example.seteasecloudmusic.feature.auth.di
 import com.example.seteasecloudmusic.feature.auth.domain.repository.AuthRepository
 import com.example.seteasecloudmusic.feature.auth.usecase.EmailLoginUseCase
 import com.example.seteasecloudmusic.feature.auth.usecase.GuestLoginUseCase
+import com.example.seteasecloudmusic.feature.auth.usecase.LogoutUseCase
 import com.example.seteasecloudmusic.feature.auth.usecase.ObserveAuthStateUseCase
 import com.example.seteasecloudmusic.feature.auth.usecase.PhoneLoginUseCase
 import com.example.seteasecloudmusic.feature.auth.usecase.PollQrStatusUseCase
@@ -50,6 +51,10 @@ object AuthUseCaseModule {
     @Provides
     fun provideGuestLoginUseCase(repository: AuthRepository): GuestLoginUseCase =
         GuestLoginUseCase(repository)
+
+    @Provides
+    fun provideLogoutUseCase(repository: AuthRepository): LogoutUseCase =
+        LogoutUseCase(repository)
 
     @Provides
     fun provideRefreshSessionUseCase(repository: AuthRepository): RefreshSessionUseCase =

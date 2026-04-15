@@ -31,7 +31,10 @@ class AuthRepositoryImpl @Inject constructor(
     override suspend fun loginByPhone(phone: String, password: String): Result<AuthSession> {
         return runCatching {
             val response = authService.loginWithPassword(phone, password)
-            parseLoginResponse(response, LoginMethod.PHONE)
+            val session = parseLoginResponse(response, LoginMethod.PHONE)
+            val enrichedSession = completeSessionProfileIfMissing(session)
+            saveSession(enrichedSession)
+            enrichedSession
         }
     }
 
@@ -42,7 +45,10 @@ class AuthRepositoryImpl @Inject constructor(
     override suspend fun loginByCaptcha(phone: String, captcha: String): Result<AuthSession> {
         return runCatching {
             val response = authService.loginWithCaptcha(phone, captcha)
-            parseLoginResponse(response, LoginMethod.CAPTCHA)
+            val session = parseLoginResponse(response, LoginMethod.CAPTCHA)
+            val enrichedSession = completeSessionProfileIfMissing(session)
+            saveSession(enrichedSession)
+            enrichedSession
         }
     }
 
@@ -88,11 +94,15 @@ class AuthRepositoryImpl @Inject constructor(
                     message = body.message.ifBlank { "扫码成功，请在手机上确认" }
                 )
                 803 -> {
-                    val session = AuthSession(
+                    val baseSession = AuthSession(
+                        userId = body.profile?.userId ?: body.account?.id,
+                        nickname = body.profile?.nickname?.takeIf { it.isNotBlank() },
+                        avatarUrl = body.profile?.avatarUrl?.takeIf { it.isNotBlank() },
                         cookie = body.cookie.takeIf { it.isNotBlank() },
                         loginMethod = LoginMethod.QR,
                         isLoggedIn = true
                     )
+                    val session = completeSessionProfileIfMissing(baseSession)
                     saveSession(session)
                     QrPollResult(state = QrStatus.SUCCESS, session = session, message = "登录成功")
                 }
@@ -107,10 +117,37 @@ class AuthRepositoryImpl @Inject constructor(
         return Result.success(AuthSession(loginMethod = LoginMethod.GUEST))
     }
 
+    override suspend fun logout(): Result<Unit> {
+        val remoteLogoutResult = runCatching {
+            val response = authService.logout(System.currentTimeMillis())
+            if (!response.isSuccessful) {
+                throw Exception("退出登录失败: ${response.code()}")
+            }
+            val body = response.body()
+            if (body?.code != 200) {
+                throw Exception(body?.message ?: "退出登录失败")
+            }
+        }
+
+        clearSession()
+        clearNetworkCookie()
+
+        return remoteLogoutResult.fold(
+            onSuccess = { Result.success(Unit) },
+            onFailure = { Result.failure(it) }
+        )
+    }
+
     override suspend fun refreshSessionIfNeeded(): Result<AuthSession> {
         val current = loadSessionFromPrefs()
         return if (current?.isLoggedIn == true) {
-            Result.success(current)
+            runCatching {
+                val enrichedSession = completeSessionProfileIfMissing(current)
+                if (enrichedSession != current) {
+                    saveSession(enrichedSession)
+                }
+                enrichedSession
+            }
         } else {
             Result.failure(Exception("无有效登录态"))
         }
@@ -142,16 +179,66 @@ class AuthRepositoryImpl @Inject constructor(
         val profile = body.profile
         val account = body.account
 
-        val session = AuthSession(
+        return AuthSession(
             userId = profile?.userId ?: account?.id,
-            nickname = profile?.nickname,
-            avatarUrl = profile?.avatarUrl,
+            nickname = profile?.nickname?.takeIf { it.isNotBlank() },
+            avatarUrl = profile?.avatarUrl?.takeIf { it.isNotBlank() },
             cookie = body.cookie,
             loginMethod = method,
             isLoggedIn = true
         )
-        saveSession(session)
-        return session
+    }
+
+    private suspend fun completeSessionProfileIfMissing(session: AuthSession): AuthSession {
+        if (!session.isLoggedIn || !hasMissingProfile(session)) {
+            return session
+        }
+
+        val snapshot = fetchProfileSnapshot() ?: return session
+        return session.copy(
+            userId = session.userId ?: snapshot.userId,
+            nickname = session.nickname ?: snapshot.nickname,
+            avatarUrl = session.avatarUrl ?: snapshot.avatarUrl
+        )
+    }
+
+    private suspend fun fetchProfileSnapshot(): ProfileSnapshot? {
+        return try {
+            val response = authService.getLoginStatus(System.currentTimeMillis())
+            if (!response.isSuccessful) {
+                return null
+            }
+
+            val body = response.body() ?: return null
+            if (body.code != 200) {
+                return null
+            }
+
+            val nestedCode = body.data?.code ?: 200
+            if (nestedCode != 200) {
+                return null
+            }
+
+            val profile = body.data?.profile ?: body.profile
+            val account = body.data?.account ?: body.account
+            val snapshot = ProfileSnapshot(
+                userId = profile?.userId ?: account?.id,
+                nickname = profile?.nickname?.takeIf { it.isNotBlank() },
+                avatarUrl = profile?.avatarUrl?.takeIf { it.isNotBlank() }
+            )
+
+            if (snapshot.userId == null && snapshot.nickname == null && snapshot.avatarUrl == null) {
+                null
+            } else {
+                snapshot
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun hasMissingProfile(session: AuthSession): Boolean {
+        return session.userId == null || session.nickname.isNullOrBlank() || session.avatarUrl.isNullOrBlank()
     }
 
     private fun saveSession(session: AuthSession) {
@@ -176,13 +263,16 @@ class AuthRepositoryImpl @Inject constructor(
         val avatarUrl = prefs.getString(KEY_AVATAR_URL, null)
         val methodName = prefs.getString(KEY_LOGIN_METHOD, LoginMethod.UNKNOWN.name)
         val isLoggedIn = prefs.getBoolean(KEY_IS_LOGGED_IN, false)
+        val loginMethod = runCatching {
+            LoginMethod.valueOf(methodName ?: LoginMethod.UNKNOWN.name)
+        }.getOrDefault(LoginMethod.UNKNOWN)
 
         return AuthSession(
             userId = userId,
-            nickname = nickname,
-            avatarUrl = avatarUrl,
+            nickname = nickname?.takeIf { it.isNotBlank() },
+            avatarUrl = avatarUrl?.takeIf { it.isNotBlank() },
             cookie = cookie,
-            loginMethod = LoginMethod.valueOf(methodName ?: LoginMethod.UNKNOWN.name),
+            loginMethod = loginMethod,
             isLoggedIn = isLoggedIn
         )
     }
@@ -192,8 +282,23 @@ class AuthRepositoryImpl @Inject constructor(
         _authState.value = null
     }
 
+    private fun clearNetworkCookie() {
+        context.getSharedPreferences(COOKIE_PREF_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .remove(COOKIE_KEY)
+            .apply()
+    }
+
+    private data class ProfileSnapshot(
+        val userId: Long?,
+        val nickname: String?,
+        val avatarUrl: String?
+    )
+
     companion object {
         private const val PREF_NAME = "auth_prefs"
+        private const val COOKIE_PREF_NAME = "auth_cookies"
+        private const val COOKIE_KEY = "cookie_string"
         private const val KEY_USER_ID = "user_id"
         private const val KEY_NICKNAME = "nickname"
         private const val KEY_AVATAR_URL = "avatar_url"

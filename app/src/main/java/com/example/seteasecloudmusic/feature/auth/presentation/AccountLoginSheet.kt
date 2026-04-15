@@ -13,6 +13,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -31,6 +32,7 @@ import androidx.compose.material.icons.filled.QrCode2
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Sms
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -43,17 +45,17 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -103,7 +105,30 @@ fun AccountLoginSheetContent(
                 .padding(horizontal = 16.dp)
                 .padding(top = 12.dp, bottom = 76.dp)
         ) {
-            Header(onDismiss = onDismiss)
+            val isAccountDetailsFlow =
+                uiState.panel == AuthPanel.ACCOUNT_DETAILS ||
+                    uiState.panel == AuthPanel.ACCOUNT_DETAIL_SUBPAGE
+
+            if (isAccountDetailsFlow) {
+                val detailsTitle = if (uiState.panel == AuthPanel.ACCOUNT_DETAILS) {
+                    "账户设置"
+                } else {
+                    uiState.accountDetailsDestination?.title ?: "账户详情"
+                }
+                AccountDetailsHeader(
+                    title = detailsTitle,
+                    onBack = {
+                        if (uiState.panel == AuthPanel.ACCOUNT_DETAIL_SUBPAGE) {
+                            viewModel.onBackFromAccountDetailsSubpage()
+                        } else {
+                            viewModel.onBackToMethods()
+                        }
+                    },
+                    onDismiss = onDismiss
+                )
+            } else {
+                Header(onDismiss = onDismiss)
+            }
 
             Spacer(modifier = Modifier.height(14.dp))
 
@@ -129,9 +154,7 @@ fun AccountLoginSheetContent(
                                 }
                             },
                             onProfileClick = {
-                                scope.launch {
-                                    snackbarHostState.showSnackbar("账户详情开发中")
-                                }
+                                viewModel.onAccountDetailsOpened()
                             }
                         )
                     }
@@ -162,8 +185,74 @@ fun AccountLoginSheetContent(
                             onRefresh = { viewModel.onRefreshQr() }
                         )
                     }
+
+                    AuthPanel.ACCOUNT_DETAILS -> {
+                        AccountDetailsPanel(
+                            avatarUrl = uiState.authSession?.avatarUrl,
+                            displayName = uiState.authSession?.nickname,
+                            personalizedRecommendationEnabled = uiState.personalizedRecommendationEnabled,
+                            isProcessingLogout = uiState.isLoading,
+                            onAppleAccountClick = {
+                                viewModel.onAccountDetailsDestinationOpened(AccountDetailsDestination.APPLE_ACCOUNT)
+                            },
+                            onManagePaymentClick = {
+                                viewModel.onAccountDetailsDestinationOpened(AccountDetailsDestination.MANAGE_PAYMENT)
+                            },
+                            onSubscriptionsClick = {
+                                viewModel.onAccountDetailsDestinationOpened(AccountDetailsDestination.SUBSCRIPTIONS)
+                            },
+                            onPurchaseHistoryClick = {
+                                viewModel.onAccountDetailsDestinationOpened(AccountDetailsDestination.PURCHASE_HISTORY)
+                            },
+                            onAddFundsClick = {
+                                viewModel.onAccountDetailsDestinationOpened(AccountDetailsDestination.ADD_FUNDS)
+                            },
+                            onCountryRegionClick = {
+                                viewModel.onAccountDetailsDestinationOpened(AccountDetailsDestination.COUNTRY_REGION)
+                            },
+                            onRatingsAndReviewsClick = {
+                                viewModel.onAccountDetailsDestinationOpened(AccountDetailsDestination.RATINGS_AND_REVIEWS)
+                            },
+                            onPersonalizedRecommendationChange = {
+                                viewModel.onPersonalizedRecommendationToggled(it)
+                            },
+                            onLogoutClick = { viewModel.onRequestLogout() }
+                        )
+                    }
+
+                    AuthPanel.ACCOUNT_DETAIL_SUBPAGE -> {
+                        AccountDetailsSubpagePanel(
+                            destination = uiState.accountDetailsDestination,
+                            secondary = secondary
+                        )
+                    }
                 }
             }
+        }
+
+        if (uiState.showLogoutConfirmDialog) {
+            AlertDialog(
+                onDismissRequest = { viewModel.onDismissLogoutConfirm() },
+                title = {
+                    Text(
+                        text = "退出登录",
+                        fontWeight = FontWeight.Bold
+                    )
+                },
+                text = {
+                    Text(text = "确定要退出当前账号吗？退出后你仍可随时重新登录。")
+                },
+                confirmButton = {
+                    TextButton(onClick = { viewModel.onConfirmLogout() }) {
+                        Text(text = "退出", color = red, fontWeight = FontWeight.SemiBold)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { viewModel.onDismissLogoutConfirm() }) {
+                        Text(text = "取消", color = Color(0xFF5F5F67))
+                    }
+                }
+            )
         }
 
         SnackbarHost(
@@ -219,6 +308,346 @@ private fun Header(onDismiss: () -> Unit) {
                 tint = Color(0xFF1C1C1E)
             )
         }
+    }
+}
+
+@Composable
+private fun AccountDetailsHeader(
+    title: String,
+    onBack: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        IconButton(
+            onClick = onBack,
+            modifier = Modifier
+                .size(44.dp)
+                .background(Color(0xFFF0F0F4), CircleShape)
+        ) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = "返回",
+                tint = Color(0xFF1C1C1E)
+            )
+        }
+
+        Text(
+            text = title,
+            fontSize = 20.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color(0xFF121212)
+        )
+
+        IconButton(
+            onClick = onDismiss,
+            modifier = Modifier
+                .size(44.dp)
+                .background(Color(0xFFF0F0F4), CircleShape)
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Close,
+                contentDescription = "关闭",
+                tint = Color(0xFF1C1C1E)
+            )
+        }
+    }
+}
+
+@Composable
+private fun AccountDetailsPanel(
+    avatarUrl: String?,
+    displayName: String?,
+    personalizedRecommendationEnabled: Boolean,
+    isProcessingLogout: Boolean,
+    onAppleAccountClick: () -> Unit,
+    onManagePaymentClick: () -> Unit,
+    onSubscriptionsClick: () -> Unit,
+    onPurchaseHistoryClick: () -> Unit,
+    onAddFundsClick: () -> Unit,
+    onCountryRegionClick: () -> Unit,
+    onRatingsAndReviewsClick: () -> Unit,
+    onPersonalizedRecommendationChange: (Boolean) -> Unit,
+    onLogoutClick: () -> Unit
+) {
+    val secondary = Color(0xFF8D8D93)
+    val dividerColor = Color(0xFFE2E2E8)
+    val red = Color(0xFFFA233B)
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        SettingsSectionCard {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onAppleAccountClick)
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                UserAvatar(
+                    avatarUrl = avatarUrl,
+                    displayName = displayName,
+                    size = 44.dp,
+                    showBorder = false
+                )
+                Spacer(modifier = Modifier.size(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Apple 账户",
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color(0xFF121212)
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = displayName ?: "Setease 用户",
+                        fontSize = 14.sp,
+                        color = secondary
+                    )
+                }
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                    contentDescription = null,
+                    tint = Color(0xFFC7C7CC),
+                    modifier = Modifier.size(22.dp)
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        SettingsSectionCard {
+            SettingsNavigationRow(
+                title = "管理付款方式",
+                onClick = onManagePaymentClick
+            )
+            SettingsDivider(dividerColor)
+            SettingsNavigationRow(
+                title = "订阅",
+                onClick = onSubscriptionsClick
+            )
+            SettingsDivider(dividerColor)
+            SettingsNavigationRow(
+                title = "购买记录",
+                onClick = onPurchaseHistoryClick
+            )
+            SettingsDivider(dividerColor)
+            SettingsNavigationRow(
+                title = "为账户充值",
+                onClick = onAddFundsClick
+            )
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        SettingsSectionCard {
+            SettingsNavigationRow(
+                title = "国家/地区",
+                trailingText = "中国大陆",
+                onClick = onCountryRegionClick
+            )
+            SettingsDivider(dividerColor)
+            SettingsNavigationRow(
+                title = "评分与评论",
+                onClick = onRatingsAndReviewsClick
+            )
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        SettingsSectionCard {
+            SettingsToggleRow(
+                title = "个性化推荐",
+                checked = personalizedRecommendationEnabled,
+                onCheckedChange = onPersonalizedRecommendationChange
+            )
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        Text(
+            text = "开启后，系统将使用你的 App 使用数据、下载内容和购买行为优化推荐内容。",
+            color = secondary,
+            fontSize = 14.sp,
+            lineHeight = 20.sp,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp)
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Card(
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(
+                    enabled = !isProcessingLogout,
+                    onClick = onLogoutClick
+                )
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 16.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                if (isProcessingLogout) {
+                    CircularProgressIndicator(
+                        color = red,
+                        strokeWidth = 2.dp,
+                        modifier = Modifier.size(20.dp)
+                    )
+                } else {
+                    Text(
+                        text = "退出登录",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = red
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AccountDetailsSubpagePanel(
+    destination: AccountDetailsDestination?,
+    secondary: Color
+) {
+    val title = destination?.title ?: "账户详情"
+    val description = destination?.placeholderDescription() ?: "该功能正在开发中。"
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Card(
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 20.dp)
+            ) {
+                Text(
+                    text = title,
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF121212)
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = description,
+                    fontSize = 15.sp,
+                    lineHeight = 22.sp,
+                    color = secondary
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SettingsSectionCard(
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Card(
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.fillMaxWidth(), content = content)
+    }
+}
+
+@Composable
+private fun SettingsDivider(color: Color) {
+    HorizontalDivider(
+        modifier = Modifier.padding(horizontal = 16.dp),
+        color = color,
+        thickness = 1.dp
+    )
+}
+
+@Composable
+private fun SettingsNavigationRow(
+    title: String,
+    trailingText: String? = null,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 18.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = title,
+            fontSize = 17.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = Color(0xFF121212),
+            modifier = Modifier.weight(1f)
+        )
+        if (!trailingText.isNullOrBlank()) {
+            Text(
+                text = trailingText,
+                fontSize = 16.sp,
+                color = Color(0xFF8D8D93)
+            )
+            Spacer(modifier = Modifier.size(4.dp))
+        }
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            contentDescription = null,
+            tint = Color(0xFFC7C7CC),
+            modifier = Modifier.size(22.dp)
+        )
+    }
+}
+
+@Composable
+private fun SettingsToggleRow(
+    title: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = title,
+            fontSize = 17.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = Color(0xFF121212),
+            modifier = Modifier.weight(1f)
+        )
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange
+        )
+    }
+}
+
+private fun AccountDetailsDestination.placeholderDescription(): String {
+    return when (this) {
+        AccountDetailsDestination.APPLE_ACCOUNT -> "这里会展示账户信息、登录设备与安全设置。"
+        AccountDetailsDestination.MANAGE_PAYMENT -> "这里将支持管理银行卡、支付方式和账单地址。"
+        AccountDetailsDestination.SUBSCRIPTIONS -> "这里将展示你的订阅状态、续费周期和方案变更入口。"
+        AccountDetailsDestination.PURCHASE_HISTORY -> "这里会提供购买项目、订单详情和发票记录。"
+        AccountDetailsDestination.ADD_FUNDS -> "这里将支持账户充值与余额明细管理。"
+        AccountDetailsDestination.COUNTRY_REGION -> "这里将支持切换国家或地区与货币配置。"
+        AccountDetailsDestination.RATINGS_AND_REVIEWS -> "这里会展示你的评分、评论与编辑入口。"
     }
 }
 
@@ -453,7 +882,7 @@ private fun CaptchaPanel(
                 onValueChange = onCaptchaChange,
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                placeholder = { Text("请输入 6 位验证码") },
+                placeholder = { Text("请输入验证码") },
                 colors = TextFieldDefaults.colors(
                     focusedContainerColor = Color.Transparent,
                     unfocusedContainerColor = Color.Transparent,

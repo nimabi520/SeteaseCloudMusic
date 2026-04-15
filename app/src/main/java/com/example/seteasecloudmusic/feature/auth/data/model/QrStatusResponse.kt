@@ -6,5 +6,7 @@ package com.example.seteasecloudmusic.feature.auth.data.model
 data class QrStatusResponse(
 	val code: Int = 0,
 	val message: String = "",
-	val cookie: String = ""
+	val cookie: String = "",
+	val account: AccountResponse? = null,
+	val profile: ProfileResponse? = null
 )
