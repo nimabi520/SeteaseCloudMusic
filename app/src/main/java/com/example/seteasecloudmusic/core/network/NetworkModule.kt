@@ -3,6 +3,7 @@ package com.example.seteasecloudmusic.core.network
 import android.content.Context
 import android.util.Log
 import com.example.seteasecloudmusic.BuildConfig
+import com.example.seteasecloudmusic.feature.artist.data.ArtistService
 import com.example.seteasecloudmusic.core.network.interceptor.AuthInterceptor
 import com.example.seteasecloudmusic.feature.auth.data.AuthService
 import com.example.seteasecloudmusic.feature.search.data.NeteaseMusicService
@@ -148,6 +149,14 @@ class NetworkModule {
     @Singleton
     fun provideNeteaseMusicService(retrofit: Retrofit): NeteaseMusicService =
         retrofit.create(NeteaseMusicService::class.java)
+
+    /**
+     * Expose artist API service.
+     */
+    @Provides
+    @Singleton
+    fun provideArtistService(retrofit: Retrofit): ArtistService =
+        retrofit.create(ArtistService::class.java)
 
     /**
      * 暴露认证 API 服务实例。

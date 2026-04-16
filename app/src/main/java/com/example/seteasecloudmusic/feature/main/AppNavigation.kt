@@ -12,13 +12,16 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
+import androidx.compose.foundation.indication
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.PressInteraction
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.CircleShape
@@ -61,6 +64,7 @@ import com.example.seteasecloudmusic.core.player.PlayerStatus
 import com.example.seteasecloudmusic.feature.auth.presentation.AccountLoginSheetContent
 import com.example.seteasecloudmusic.feature.main.components.UserAvatar
 import com.example.seteasecloudmusic.feature.auth.presentation.AuthViewModel
+import com.example.seteasecloudmusic.feature.artist.presentation.ArtistDetailRoute
 import com.example.seteasecloudmusic.feature.search.presentation.SearchRoute
 import com.example.seteasecloudmusic.feature.search.presentation.SearchViewModel
 import com.example.seteasecloudmusic.feature.player.presentation.NowPlayingScreen
@@ -98,6 +102,12 @@ import kotlin.math.roundToInt
  * @property icon 导航项显示的图标资源
  */
 data class BottomNavItem(val title: String, val icon: ImageVector)
+
+private data class SelectedArtist(
+    val id: Long,
+    val name: String,
+    val coverUrl: String?
+)
 
 //底栏上方的玻璃滑块
 @Composable
@@ -239,6 +249,7 @@ fun AppNavigation(
     var showNowPlaying by remember { mutableStateOf(false) }
     var showAccountSheet by remember { mutableStateOf(false) }
     var mountAccountOverlay by remember { mutableStateOf(false) }
+    var selectedArtist by remember { mutableStateOf<SelectedArtist?>(null) }
 
     LaunchedEffect(authViewModel.dismissSheet) {
         authViewModel.dismissSheet.collect {
@@ -337,7 +348,14 @@ fun AppNavigation(
                 3 -> SearchRoute(
                     viewModel = searchViewModel,
                     topContentPadding = searchContentTopPadding,
-                    bottomContentPadding = 180.dp + animatedImeOffset
+                    bottomContentPadding = 180.dp + animatedImeOffset,
+                    onArtistClick = { artistId, artistName, artistCoverUrl ->
+                        selectedArtist = SelectedArtist(
+                            id = artistId,
+                            name = artistName,
+                            coverUrl = artistCoverUrl
+                        )
+                    }
                 ) // 搜索
                 else -> AppPageBackground()
             }
@@ -749,6 +767,15 @@ fun AppNavigation(
                 viewModel = authViewModel
             )
         }
+
+        selectedArtist?.let { artist ->
+            ArtistDetailRoute(
+                artistId = artist.id,
+                artistName = artist.name,
+                artistCoverUrl = artist.coverUrl,
+                onClose = { selectedArtist = null }
+            )
+        }
     }
 }
 
@@ -912,10 +939,30 @@ private fun UserAvatarButton(
     val hasDisplayName = !displayName.isNullOrBlank()
     val hasAvatar = !avatarUrl.isNullOrBlank()
     val isGuest = !hasAvatar && !hasDisplayName
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.94f else 1f,
+        animationSpec = spring(stiffness = 760f, dampingRatio = 0.76f),
+        label = "avatarButtonScale"
+    )
+    val indication = LocalIndication.current
 
     Box(
         modifier = modifier
-            .clickable(enabled = enabled, onClick = onClick),
+            .size(46.dp)
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
+            .clip(CircleShape)
+            .indication(interactionSource = interactionSource, indication = indication)
+            .clickable(
+                enabled = enabled,
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick
+            ),
         contentAlignment = Alignment.Center
     ) {
         UserAvatar(

@@ -112,7 +112,8 @@ private sealed interface SearchRowItem {
 fun SearchRoute(
     viewModel: SearchViewModel,
     topContentPadding: Dp = 18.dp,
-    bottomContentPadding: Dp = 180.dp
+    bottomContentPadding: Dp = 180.dp,
+    onArtistClick: (Long, String, String?) -> Unit = { _, _, _ -> }
 ) {
     val uiState by viewModel.uiState.collectAsState()
     SearchScreenContent(
@@ -120,6 +121,7 @@ fun SearchRoute(
         topContentPadding = topContentPadding,
         bottomContentPadding = bottomContentPadding,
         onSuggestionClick = { viewModel.onSuggestionClick(it) },
+        onArtistClick = onArtistClick,
         onTrackClick = { viewModel.onTrackClick(it) },
         onRetryClick = { viewModel.onRetryClick() }
     )
@@ -131,6 +133,7 @@ fun SearchScreenContent(
     topContentPadding: Dp,
     bottomContentPadding: Dp = 180.dp,
     onSuggestionClick: (String) -> Unit,
+    onArtistClick: (Long, String, String?) -> Unit,
     onTrackClick: (Track) -> Unit,
     onRetryClick: () -> Unit
 ) {
@@ -193,6 +196,7 @@ fun SearchScreenContent(
                 SearchResultsList(
                     items = items,
                     onRowClick = onSuggestionClick,
+                    onArtistClick = onArtistClick,
                     onTrackClick = onTrackClick,
                     modifier = Modifier
                         .fillMaxWidth()
@@ -236,6 +240,7 @@ private fun SearchTabsRow(
 private fun SearchResultsList(
     items: List<SearchRowItem>,
     onRowClick: (String) -> Unit,
+    onArtistClick: (Long, String, String?) -> Unit,
     onTrackClick: (Track) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -257,7 +262,9 @@ private fun SearchResultsList(
                 is SearchRowItem.Artist -> ArtistRow(
                     name = item.name,
                     coverUrl = item.coverUrl,
-                    onClick = { onRowClick(item.name) }
+                    onClick = {
+                        onArtistClick(item.id, item.name, item.coverUrl)
+                    }
                 )
 
                 is SearchRowItem.Playlist -> PlaylistRow(

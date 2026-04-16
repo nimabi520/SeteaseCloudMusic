@@ -1,5 +1,7 @@
 package com.example.seteasecloudmusic.core.di
 
+import com.example.seteasecloudmusic.feature.artist.data.ArtistRepositoryImpl
+import com.example.seteasecloudmusic.feature.artist.domain.repository.ArtistRepository
 import com.example.seteasecloudmusic.feature.auth.domain.repository.AuthRepository
 import com.example.seteasecloudmusic.feature.auth.domain.repository.AuthRepositoryImpl
 import com.example.seteasecloudmusic.feature.search.data.SearchRepositoryImpl
@@ -13,6 +15,12 @@ import javax.inject.Singleton
 @Module
 @InstallIn(SingletonComponent::class)
 abstract class RepositoryModule {
+    @Binds
+    @Singleton
+    abstract fun bindArtistRepository(
+        impl: ArtistRepositoryImpl
+    ): ArtistRepository
+
     @Binds
     @Singleton
     abstract fun bindSearchRepository(
