@@ -3,11 +3,17 @@ package com.example.seteasecloudmusic.feature.auth.presentation
 import android.graphics.BitmapFactory
 import android.util.Base64
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -20,6 +26,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -45,7 +52,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
@@ -59,7 +65,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -67,6 +75,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.seteasecloudmusic.feature.main.components.UserAvatar
+import com.kyant.backdrop.Backdrop
+import com.kyant.backdrop.drawBackdrop
+import com.kyant.backdrop.effects.blur
+import com.kyant.backdrop.effects.lens
+import com.kyant.backdrop.effects.vibrancy
+import com.kyant.shapes.RoundedRectangle
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
@@ -74,6 +88,7 @@ import kotlinx.coroutines.launch
 fun AccountLoginSheetContent(
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
+    backdrop: Backdrop? = null,
     viewModel: AuthViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -192,6 +207,7 @@ fun AccountLoginSheetContent(
                             displayName = uiState.authSession?.nickname,
                             personalizedRecommendationEnabled = uiState.personalizedRecommendationEnabled,
                             isProcessingLogout = uiState.isLoading,
+                            backdrop = backdrop,
                             onAppleAccountClick = {
                                 viewModel.onAccountDetailsDestinationOpened(AccountDetailsDestination.APPLE_ACCOUNT)
                             },
@@ -363,6 +379,7 @@ private fun AccountDetailsPanel(
     displayName: String?,
     personalizedRecommendationEnabled: Boolean,
     isProcessingLogout: Boolean,
+    backdrop: Backdrop?,
     onAppleAccountClick: () -> Unit,
     onManagePaymentClick: () -> Unit,
     onSubscriptionsClick: () -> Unit,
@@ -461,7 +478,8 @@ private fun AccountDetailsPanel(
             SettingsToggleRow(
                 title = "个性化推荐",
                 checked = personalizedRecommendationEnabled,
-                onCheckedChange = onPersonalizedRecommendationChange
+                onCheckedChange = onPersonalizedRecommendationChange,
+                backdrop = backdrop
             )
         }
 
@@ -617,7 +635,8 @@ private fun SettingsNavigationRow(
 private fun SettingsToggleRow(
     title: String,
     checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit
+    onCheckedChange: (Boolean) -> Unit,
+    backdrop: Backdrop?
 ) {
     Row(
         modifier = Modifier
@@ -632,9 +651,95 @@ private fun SettingsToggleRow(
             color = Color(0xFF121212),
             modifier = Modifier.weight(1f)
         )
-        Switch(
+        LiquidGlassSwitch(
             checked = checked,
-            onCheckedChange = onCheckedChange
+            onCheckedChange = onCheckedChange,
+            backdrop = backdrop
+        )
+    }
+}
+
+@Composable
+private fun LiquidGlassSwitch(
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    backdrop: Backdrop?,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true
+) {
+    val trackWidth = 51.dp
+    val trackHeight = 31.dp
+    val thumbSize = 27.dp
+    val thumbPadding = 2.dp
+
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val trackColor by animateColorAsState(
+        targetValue = if (checked) Color(0xFF30D158) else Color(0xFF3A3A3C),
+        animationSpec = tween(durationMillis = 170),
+        label = "liquidSwitchTrackColor"
+    )
+    val thumbOffsetX by animateDpAsState(
+        targetValue = if (checked) trackWidth - thumbSize - thumbPadding else thumbPadding,
+        animationSpec = spring(dampingRatio = 0.78f, stiffness = 640f),
+        label = "liquidSwitchThumbOffset"
+    )
+    val thumbScale by animateFloatAsState(
+        targetValue = if (isPressed) 0.96f else 1f,
+        animationSpec = spring(dampingRatio = 0.8f, stiffness = 850f),
+        label = "liquidSwitchThumbScale"
+    )
+
+    val baseModifier = modifier
+        .size(trackWidth, trackHeight)
+        .clip(CircleShape)
+        .clickable(
+            enabled = enabled,
+            interactionSource = interactionSource,
+            indication = null
+        ) {
+            onCheckedChange(!checked)
+        }
+
+    val decoratedModifier = if (backdrop != null) {
+        baseModifier.drawBackdrop(
+            backdrop = backdrop,
+            shape = { RoundedRectangle(trackHeight / 2) },
+            effects = {
+                vibrancy()
+                blur(1.2f.dp.toPx())
+                lens(
+                    refractionHeight = 2.2f.dp.toPx(),
+                    refractionAmount = 4.5f.dp.toPx(),
+                    chromaticAberration = false
+                )
+            },
+            onDrawSurface = {
+                drawRect(trackColor)
+            }
+        )
+    } else {
+        baseModifier.background(trackColor, CircleShape)
+    }
+
+    Box(
+        modifier = decoratedModifier,
+        contentAlignment = Alignment.CenterStart
+    ) {
+        Box(
+            modifier = Modifier
+                .offset(x = thumbOffsetX)
+                .size(thumbSize)
+                .graphicsLayer {
+                    scaleX = thumbScale
+                    scaleY = thumbScale
+                }
+                .shadow(
+                    elevation = if (isPressed) 1.dp else 2.dp,
+                    shape = CircleShape,
+                    clip = false
+                )
+                .background(Color.White, CircleShape)
         )
     }
 }

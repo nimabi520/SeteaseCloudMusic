@@ -806,6 +806,11 @@ private fun AccountFullScreenOverlay(
             label = "accountPanelDragOffset"
         )
         val effectiveDragOffsetPx = if (isDragging) dragOffsetPx else settledDragOffsetPx
+        val panelDragState = rememberDraggableState { delta ->
+            if (delta > 0f || dragOffsetPx > 0f) {
+                dragOffsetPx = (dragOffsetPx + delta).coerceIn(0f, hiddenOffsetPx)
+            }
+        }
 
         LaunchedEffect(visible) {
             if (visible) {
@@ -870,44 +875,47 @@ private fun AccountFullScreenOverlay(
                 )
                 .clip(panelShape)
                 .background(Color(0xFFF2F2F7))
-                .draggable(
-                    orientation = Orientation.Vertical,
-                    state = rememberDraggableState { delta ->
-                        if (delta > 0f || dragOffsetPx > 0f) {
-                            dragOffsetPx = (dragOffsetPx + delta).coerceIn(0f, hiddenOffsetPx)
-                        }
-                    },
-                    enabled = visible,
-                    onDragStarted = { isDragging = true },
-                    onDragStopped = { velocity ->
-                        isDragging = false
-                        val dismissByDistance = dragOffsetPx > panelHeightPx * 0.16f
-                        val dismissByVelocity = velocity > with(density) { 1100.dp.toPx() }
-                        if (dismissByDistance || dismissByVelocity) {
-                            onDismissRequest()
-                        } else {
-                            dragOffsetPx = 0f
-                        }
-                    }
-                )
         ) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .padding(top = 10.dp)
-                    .size(width = 44.dp, height = 5.dp)
-                    .clip(CircleShape)
-                    .background(Color(0xFFD2D2D8))
-            )
-
             AccountLoginSheetContent(
                 onDismiss = onDismissRequest,
+                backdrop = backdrop,
                 modifier = Modifier
                     .fillMaxSize()
                     .navigationBarsPadding()
                     .padding(top = 6.dp),
                 viewModel = viewModel
             )
+
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 2.dp)
+                    .size(width = 76.dp, height = 28.dp)
+                    .draggable(
+                        orientation = Orientation.Vertical,
+                        state = panelDragState,
+                        enabled = visible,
+                        onDragStarted = { isDragging = true },
+                        onDragStopped = { velocity ->
+                            isDragging = false
+                            val dismissByDistance = dragOffsetPx > panelHeightPx * 0.16f
+                            val dismissByVelocity = velocity > with(density) { 1100.dp.toPx() }
+                            if (dismissByDistance || dismissByVelocity) {
+                                onDismissRequest()
+                            } else {
+                                dragOffsetPx = 0f
+                            }
+                        }
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(width = 44.dp, height = 5.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFFD2D2D8))
+                )
+            }
         }
     }
 }
