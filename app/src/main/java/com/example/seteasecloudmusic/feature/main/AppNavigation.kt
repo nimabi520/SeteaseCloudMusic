@@ -45,6 +45,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.Key
@@ -77,6 +78,7 @@ import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.effects.vibrancy
 import com.kyant.shapes.RoundedRectangle
+import coil3.compose.AsyncImage
 import kotlinx.coroutines.launch
 import kotlin.math.absoluteValue
 import kotlin.math.roundToInt
@@ -999,6 +1001,7 @@ private fun SearchMiniPlayerBar(
 ) {
     val hasTrack = playbackState.currentTrack != null
     val isPlaying = playbackState.status == PlayerStatus.PLAYING
+    val artworkUrl = playbackState.currentTrack?.coverUrl ?: playbackState.currentTrack?.album?.coverUrl
     val hasNextTrack =
         playbackState.currentQueueIndex in playbackState.queueTracks.indices &&
             playbackState.currentQueueIndex < playbackState.queueTracks.lastIndex
@@ -1025,6 +1028,11 @@ private fun SearchMiniPlayerBar(
                 .padding(horizontal = 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            MiniPlayerArtwork(
+                imageUrl = artworkUrl,
+                modifier = Modifier.size(40.dp)
+            )
+            Spacer(modifier = Modifier.width(10.dp))
             Text(
                 text = playbackState.currentTrack?.title ?: "未在播放",
                 color = Color.Black,
@@ -1047,6 +1055,37 @@ private fun SearchMiniPlayerBar(
                 modifier = Modifier
                     .size(30.dp)
                     .clickable(enabled = hasNextTrack) { onNextClick() }
+            )
+        }
+    }
+}
+
+@Composable
+private fun MiniPlayerArtwork(
+    imageUrl: String?,
+    modifier: Modifier = Modifier
+) {
+    val shape = RoundedCornerShape(8.dp)
+
+    Box(
+        modifier = modifier
+            .clip(shape)
+            .background(Color(0xFFE3E3E6)),
+        contentAlignment = Alignment.Center
+    ) {
+        if (!imageUrl.isNullOrBlank()) {
+            AsyncImage(
+                model = imageUrl,
+                contentDescription = "当前歌曲封面",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+        } else {
+            Icon(
+                imageVector = Icons.Filled.PlayArrow,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(20.dp)
             )
         }
     }
