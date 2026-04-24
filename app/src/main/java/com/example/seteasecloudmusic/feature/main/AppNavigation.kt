@@ -44,7 +44,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -66,6 +68,9 @@ import com.example.seteasecloudmusic.feature.auth.presentation.AccountLoginSheet
 import com.example.seteasecloudmusic.feature.main.components.UserAvatar
 import com.example.seteasecloudmusic.feature.auth.presentation.AuthViewModel
 import com.example.seteasecloudmusic.feature.artist.presentation.ArtistDetailRoute
+import com.example.seteasecloudmusic.feature.home.presentation.DailyRecommendDetailRoute
+import com.example.seteasecloudmusic.feature.home.presentation.HomeRoute
+import com.example.seteasecloudmusic.feature.home.presentation.HomeViewModel
 import com.example.seteasecloudmusic.feature.search.presentation.SearchRoute
 import com.example.seteasecloudmusic.feature.search.presentation.SearchViewModel
 import com.example.seteasecloudmusic.feature.player.presentation.NowPlayingScreen
@@ -109,6 +114,11 @@ private data class SelectedArtist(
     val id: Long,
     val name: String,
     val coverUrl: String?
+)
+
+private data class DailyRecommendState(
+    val tracks: List<com.example.seteasecloudmusic.core.model.Track>,
+    val posterBounds: Rect
 )
 
 //底栏上方的玻璃滑块
@@ -252,6 +262,15 @@ fun AppNavigation(
     var showAccountSheet by remember { mutableStateOf(false) }
     var mountAccountOverlay by remember { mutableStateOf(false) }
     var selectedArtist by remember { mutableStateOf<SelectedArtist?>(null) }
+    var dailyRecommendState by remember { mutableStateOf<DailyRecommendState?>(null) }
+    val expandProgress = remember { Animatable(0f) }
+    val expandScope = rememberCoroutineScope()
+
+    LaunchedEffect(dailyRecommendState) {
+        if (dailyRecommendState != null) {
+            expandProgress.animateTo(1f, spring(dampingRatio = 0.82f, stiffness = 400f))
+        }
+    }
 
     LaunchedEffect(authViewModel.dismissSheet) {
         authViewModel.dismissSheet.collect {
@@ -317,6 +336,9 @@ fun AppNavigation(
     // 让玻璃滑块、主导航条、搜索按钮共享一致的圆角半径。
     val cornerRadius = navBarHeight / 2
 
+    // ── 每日推荐展开进度（0f ~ 1f）──
+    val sinkProgress = expandProgress.value
+
     // ── 键盘（IME）感知：实现 Apple Music 风格的平滑上抬效果 ──
     val imeBottomPx = WindowInsets.ime.getBottom(LocalDensity.current)
     val navBarsBottomPx = WindowInsets.navigationBars.getBottom(LocalDensity.current)
@@ -344,7 +366,13 @@ fun AppNavigation(
         ) {
             // 根据 selectedIndex 显示不同页面
             when (selectedIndex) {
-                0 -> AppPageBackground() // 主页
+                0 -> HomeRoute(
+                    topContentPadding = searchContentTopPadding,
+                    bottomContentPadding = 180.dp + animatedImeOffset,
+                    onPosterWallClick = { tracks, bounds ->
+                        dailyRecommendState = DailyRecommendState(tracks, bounds)
+                    }
+                )
                 1 -> AppPageBackground() // 电台
                 2 -> AppPageBackground() // 我的
                 3 -> SearchRoute(
@@ -374,6 +402,7 @@ fun AppNavigation(
                 .align(Alignment.TopStart)
                 .windowInsetsPadding(WindowInsets.statusBars)
                 .padding(start = 24.dp, top = 16.dp)
+                .graphicsLayer { alpha = 1f - sinkProgress }
         ) { animatedTitle ->
             LargePageTitle(title = animatedTitle)
         }
@@ -390,6 +419,7 @@ fun AppNavigation(
                 .align(Alignment.TopEnd)
                 .windowInsetsPadding(WindowInsets.statusBars)
                 .padding(end = 24.dp, top = 12.dp)
+                .graphicsLayer { alpha = 1f - sinkProgress }
         )
 
         // --- 顶层悬浮导航栏及独立搜索按钮 ---
@@ -404,6 +434,10 @@ fun AppNavigation(
                 .fillMaxWidth()
                 // 保持 Apple Music 的视觉高度
                 .height(navBarHeight)
+                .graphicsLayer {
+                    alpha = 1f - sinkProgress
+                    translationY = sinkProgress * 200.dp.toPx()
+                }
         ) {
             val totalWidth = maxWidth
             val collapsedWidth = navBarHeight
@@ -718,6 +752,37 @@ fun AppNavigation(
             }
         }
 
+        dailyRecommendState?.let { state ->
+            val progress = expandProgress.value
+            if (progress > 0f) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer {
+                            val startScaleX = state.posterBounds.width / size.width
+                            val startScaleY = state.posterBounds.height / size.height
+                            scaleX = lerp(startScaleX, 1f, progress)
+                            scaleY = lerp(startScaleY, 1f, progress)
+                            translationX = lerp(state.posterBounds.left, 0f, progress)
+                            translationY = lerp(state.posterBounds.top, 0f, progress)
+                            transformOrigin = TransformOrigin(0f, 0f)
+                            alpha = progress
+                        }
+                ) {
+                    val homeViewModel: HomeViewModel = hiltViewModel()
+                    DailyRecommendDetailRoute(
+                        tracks = state.tracks,
+                        onClose = {
+                            expandScope.launch {
+                                expandProgress.animateTo(0f, spring(dampingRatio = 0.9f, stiffness = 500f))
+                                dailyRecommendState = null
+                            }
+                        }
+                    )
+                }
+            }
+        }
+
         SearchMiniPlayerBar(
             backdrop = backdrop,
             cornerRadius = cornerRadius,
@@ -729,6 +794,10 @@ fun AppNavigation(
                 .align(Alignment.BottomCenter)
                 .windowInsetsPadding(WindowInsets.navigationBars)
                 .padding(start = 24.dp, end = 24.dp, bottom = 100.dp + animatedImeOffset)
+                .graphicsLayer {
+                    alpha = 1f - sinkProgress
+                    translationY = sinkProgress * 200.dp.toPx()
+                }
         )
 
         GlassSlider(
@@ -747,6 +816,10 @@ fun AppNavigation(
                 .align(Alignment.BottomCenter)
                 .windowInsetsPadding(WindowInsets.navigationBars)
                 .padding(bottom = 24.dp + animatedImeOffset) // 底部导航栏间距 + 键盘偏移
+                .graphicsLayer {
+                    alpha = 1f - sinkProgress
+                    translationY = sinkProgress * 200.dp.toPx()
+                }
         )
 
         if (showNowPlaying) {
