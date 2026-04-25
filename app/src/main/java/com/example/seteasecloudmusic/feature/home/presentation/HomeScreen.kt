@@ -98,14 +98,6 @@ private fun HomeScreenContent(
             .background(HomeBackground)
             .padding(top = topContentPadding, bottom = bottomContentPadding)
     ) {
-        HomeHeader(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-            onRefreshClick = onRefreshClick,
-            refreshing = uiState.isLoading
-        )
-
         Spacer(modifier = Modifier.height(8.dp))
 
         when {
@@ -294,44 +286,6 @@ private fun PosterGridCell(
                 contentDescription = "推荐封面",
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize()
-            )
-        }
-    }
-}
-
-@Composable
-private fun HomeHeader(
-    onRefreshClick: () -> Unit,
-    refreshing: Boolean,
-    modifier: Modifier = Modifier
-) {
-    Row(
-        modifier = modifier,
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(
-                text = "每日推荐",
-                color = HomePrimary,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                text = "登录后可获取你的专属歌曲推荐",
-                color = HomeSecondary,
-                fontSize = 12.sp
-            )
-        }
-
-        IconButton(
-            onClick = onRefreshClick,
-            enabled = !refreshing
-        ) {
-            Icon(
-                imageVector = Icons.Filled.Refresh,
-                contentDescription = "刷新每日推荐",
-                tint = if (refreshing) HomeSecondary else HomePrimary
             )
         }
     }
