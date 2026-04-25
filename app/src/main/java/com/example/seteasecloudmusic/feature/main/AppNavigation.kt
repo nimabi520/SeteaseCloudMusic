@@ -795,8 +795,8 @@ fun AppNavigation(
                 .windowInsetsPadding(WindowInsets.navigationBars)
                 .padding(start = 24.dp, end = 24.dp, bottom = 100.dp + animatedImeOffset)
                 .graphicsLayer {
-                    alpha = 1f - sinkProgress
-                    translationY = sinkProgress * 200.dp.toPx()
+                    // 下沉到更低的位置（76dp），而不是移出屏幕
+                    translationY = sinkProgress * 76.dp.toPx()
                 }
         )
 
