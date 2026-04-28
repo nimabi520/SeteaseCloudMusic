@@ -1,5 +1,7 @@
 package com.example.seteasecloudmusic.feature.auth.data.model
 
+import com.google.gson.annotations.SerializedName
+
 /**
  * 登录接口返回体。
  */
@@ -16,8 +18,10 @@ data class AccountResponse(
 )
 
 data class ProfileResponse(
+    @SerializedName("user_id")
     val userId: Long? = null,
     val nickname: String? = null,
+    @SerializedName("avatar_url")
     val avatarUrl: String? = null
 )
 
