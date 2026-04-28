@@ -31,11 +31,11 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Radio
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material3.*
@@ -68,6 +68,7 @@ import com.example.seteasecloudmusic.feature.auth.presentation.AccountLoginSheet
 import com.example.seteasecloudmusic.feature.main.components.UserAvatar
 import com.example.seteasecloudmusic.feature.auth.presentation.AuthViewModel
 import com.example.seteasecloudmusic.feature.artist.presentation.ArtistDetailRoute
+import com.example.seteasecloudmusic.feature.discover.presentation.DiscoverRoute
 import com.example.seteasecloudmusic.feature.home.presentation.DailyRecommendDetailRoute
 import com.example.seteasecloudmusic.feature.home.presentation.HomeRoute
 import com.example.seteasecloudmusic.feature.home.presentation.HomeViewModel
@@ -314,7 +315,7 @@ fun AppNavigation(
     // 左侧主导航条目前承载三个一级入口。
     val mainNavItems = listOf(
         BottomNavItem("主页", Icons.Filled.Home),
-        BottomNavItem("电台", Icons.Filled.Radio),
+        BottomNavItem("发现", Icons.Filled.Explore),
         BottomNavItem("我的", Icons.Filled.Person)
     )
 
@@ -326,7 +327,7 @@ fun AppNavigation(
     val statusBarTopPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val pageTitle = when (selectedIndex) {
         0 -> "主页"
-        1 -> "电台"
+        1 -> "发现"
         2 -> "我的"
         3 -> "搜索"
         else -> "主页"
@@ -373,7 +374,10 @@ fun AppNavigation(
                         dailyRecommendState = DailyRecommendState(tracks, bounds)
                     }
                 )
-                1 -> AppPageBackground() // 电台
+                1 -> DiscoverRoute(
+                    topContentPadding = searchContentTopPadding,
+                    bottomContentPadding = 180.dp + animatedImeOffset
+                )
                 2 -> AppPageBackground() // 我的
                 3 -> SearchRoute(
                     viewModel = searchViewModel,
@@ -463,7 +467,7 @@ fun AppNavigation(
                 horizontalArrangement = Arrangement.spacedBy(mainSearchGap)
             ) {
             
-                // ============ 左侧主导航条 (包含主页、电台、我的) ============
+                // ============ 左侧主导航条 (包含主页、发现、我的) ============
                 Box(
                     modifier = Modifier
                         .width(leftWidth)
@@ -1171,7 +1175,7 @@ private fun MiniPlayerArtwork(
 /**
  * 应用页面底色
  *
- * 主页 / 电台 / 我的 这几个入口目前还没有独立内容页时，
+ * 主页 / 发现 / 我的 这几个入口目前还没有独立内容页时，
  * 先用纯白底保持和 Apple Music 接近的简洁观感。
  *
  * @param modifier 修饰符
