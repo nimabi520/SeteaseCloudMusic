@@ -18,10 +18,10 @@ data class AccountResponse(
 )
 
 data class ProfileResponse(
-    @SerializedName("user_id")
+    @SerializedName(value = "userId", alternate = ["user_id"])
     val userId: Long? = null,
     val nickname: String? = null,
-    @SerializedName("avatar_url")
+    @SerializedName(value = "avatarUrl", alternate = ["avatar_url"])
     val avatarUrl: String? = null
 )
 

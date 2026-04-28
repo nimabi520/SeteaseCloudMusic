@@ -232,7 +232,8 @@ class AuthRepositoryImpl @Inject constructor(
             } else {
                 snapshot
             }
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            android.util.Log.e("AuthRepositoryImpl", "Failed to fetch profile snapshot", e)
             null
         }
     }
