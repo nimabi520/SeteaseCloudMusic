@@ -32,6 +32,7 @@ class AuthRepositoryImpl @Inject constructor(
         return runCatching {
             val response = authService.loginWithPassword(phone, password)
             val session = parseLoginResponse(response, LoginMethod.PHONE)
+            saveNetworkCookie(session.cookie)
             val enrichedSession = completeSessionProfileIfMissing(session)
             saveSession(enrichedSession)
             enrichedSession
@@ -46,6 +47,7 @@ class AuthRepositoryImpl @Inject constructor(
         return runCatching {
             val response = authService.loginWithCaptcha(phone, captcha)
             val session = parseLoginResponse(response, LoginMethod.CAPTCHA)
+            saveNetworkCookie(session.cookie)
             val enrichedSession = completeSessionProfileIfMissing(session)
             saveSession(enrichedSession)
             enrichedSession
@@ -102,6 +104,7 @@ class AuthRepositoryImpl @Inject constructor(
                         loginMethod = LoginMethod.QR,
                         isLoggedIn = true
                     )
+                    saveNetworkCookie(baseSession.cookie)
                     val session = completeSessionProfileIfMissing(baseSession)
                     saveSession(session)
                     QrPollResult(state = QrStatus.SUCCESS, session = session, message = "登录成功")
@@ -142,6 +145,7 @@ class AuthRepositoryImpl @Inject constructor(
         val current = loadSessionFromPrefs()
         return if (current?.isLoggedIn == true) {
             runCatching {
+                saveNetworkCookie(current.cookie)
                 val enrichedSession = completeSessionProfileIfMissing(current)
                 if (enrichedSession != current) {
                     saveSession(enrichedSession)
@@ -287,6 +291,17 @@ class AuthRepositoryImpl @Inject constructor(
         context.getSharedPreferences(COOKIE_PREF_NAME, Context.MODE_PRIVATE)
             .edit()
             .remove(COOKIE_KEY)
+            .apply()
+    }
+
+    private fun saveNetworkCookie(cookie: String?) {
+        if (cookie.isNullOrBlank()) {
+            return
+        }
+
+        context.getSharedPreferences(COOKIE_PREF_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .putString(COOKIE_KEY, cookie)
             .apply()
     }
 
