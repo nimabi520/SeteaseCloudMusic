@@ -200,7 +200,7 @@ class AuthRepositoryImpl @Inject constructor(
             return session
         }
 
-        val snapshot = fetchProfileSnapshot(session.userId) ?: return session
+        val snapshot = fetchUserAccountSnapshot(session.cookie) ?: return session
         return session.copy(
             userId = session.userId ?: snapshot.userId,
             nickname = session.nickname ?: snapshot.nickname,
@@ -208,55 +208,39 @@ class AuthRepositoryImpl @Inject constructor(
         )
     }
 
-    private suspend fun fetchProfileSnapshot(currentUserId: Long?): ProfileSnapshot? {
+    private suspend fun fetchUserAccountSnapshot(cookie: String?): ProfileSnapshot? {
         return try {
-            val accountSnapshot = fetchUserAccountSnapshot()
-            val detailUserId = currentUserId
-                ?: accountSnapshot?.userId
-            val detailSnapshot = detailUserId?.let { fetchUserDetailSnapshot(it) }
-
-            mergeProfileSnapshots(
-                accountSnapshot,
-                detailSnapshot
+            val response = authService.getUserAccount(
+                timestamp = System.currentTimeMillis(),
+                cookie = cookie
             )
+            if (!response.isSuccessful) {
+                return null
+            }
+
+            val body = response.body() ?: return null
+            if (body.code != 200) {
+                return null
+            }
+
+            buildProfileSnapshot(
+                profile = body.profile,
+                account = body.account
+            ).also { snapshot ->
+                if (snapshot?.nickname.isNullOrBlank() || snapshot?.avatarUrl.isNullOrBlank()) {
+                    android.util.Log.d(
+                        "AuthRepositoryImpl",
+                        "User account profile missing: hasCookie=${!cookie.isNullOrBlank()}, " +
+                            "userId=${snapshot?.userId}, " +
+                            "anonymous=${body.account?.isAnonymousAccount()}, " +
+                            "profileNull=${body.profile == null}"
+                    )
+                }
+            }
         } catch (e: Exception) {
-            android.util.Log.e("AuthRepositoryImpl", "Failed to fetch profile snapshot", e)
+            android.util.Log.e("AuthRepositoryImpl", "Failed to fetch user account profile", e)
             null
         }
-    }
-
-    private suspend fun fetchUserAccountSnapshot(): ProfileSnapshot? {
-        val response = authService.getUserAccount(System.currentTimeMillis())
-        if (!response.isSuccessful) {
-            return null
-        }
-
-        val body = response.body() ?: return null
-        if (body.code != 200) {
-            return null
-        }
-
-        return buildProfileSnapshot(
-            profile = body.profile,
-            account = body.account
-        )
-    }
-
-    private suspend fun fetchUserDetailSnapshot(userId: Long): ProfileSnapshot? {
-        val response = authService.getUserDetail(userId, System.currentTimeMillis())
-        if (!response.isSuccessful) {
-            return null
-        }
-
-        val body = response.body() ?: return null
-        if (body.code != 200) {
-            return null
-        }
-
-        return buildProfileSnapshot(
-            profile = body.profile,
-            account = null
-        )
     }
 
     private fun buildProfileSnapshot(
@@ -273,18 +257,6 @@ class AuthRepositoryImpl @Inject constructor(
         )
 
         return snapshot.takeUnless { it.isEmpty() }
-    }
-
-    private fun mergeProfileSnapshots(vararg snapshots: ProfileSnapshot?): ProfileSnapshot? {
-        val merged = snapshots.filterNotNull().fold(ProfileSnapshot(null, null, null)) { acc, snapshot ->
-            ProfileSnapshot(
-                userId = acc.userId ?: snapshot.userId,
-                nickname = acc.nickname ?: snapshot.nickname,
-                avatarUrl = acc.avatarUrl ?: snapshot.avatarUrl
-            )
-        }
-
-        return merged.takeUnless { it.isEmpty() }
     }
 
     private fun AccountResponse.isAnonymousAccount(): Boolean {

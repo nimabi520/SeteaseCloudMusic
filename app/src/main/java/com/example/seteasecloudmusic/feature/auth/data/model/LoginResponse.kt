@@ -35,11 +35,3 @@ data class UserAccountResponse(
     val account: AccountResponse? = null,
     val profile: ProfileResponse? = null
 )
-
-/**
- * 用户详情接口响应体。
- */
-data class UserDetailResponse(
-    val code: Int = 0,
-    val profile: ProfileResponse? = null
-)

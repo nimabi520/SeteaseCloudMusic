@@ -5,7 +5,6 @@ import com.example.seteasecloudmusic.feature.auth.data.model.QrCodeResponse
 import com.example.seteasecloudmusic.feature.auth.data.model.QrKeyResponse
 import com.example.seteasecloudmusic.feature.auth.data.model.QrStatusResponse
 import com.example.seteasecloudmusic.feature.auth.data.model.UserAccountResponse
-import com.example.seteasecloudmusic.feature.auth.data.model.UserDetailResponse
 import retrofit2.Response
 import retrofit2.http.GET
 import retrofit2.http.POST
@@ -52,14 +51,9 @@ interface AuthService {
 
     @GET("/user/account")
     suspend fun getUserAccount(
-        @Query("timestamp") timestamp: Long
+        @Query("timestamp") timestamp: Long,
+        @Query("cookie") cookie: String?
     ): Response<UserAccountResponse>
-
-    @GET("/user/detail")
-    suspend fun getUserDetail(
-        @Query("uid") uid: Long,
-        @Query("timestamp") timestamp: Long
-    ): Response<UserDetailResponse>
 
     @POST("/logout")
     suspend fun logout(
