@@ -37,7 +37,7 @@ data class SearchUiState(
 class SearchViewModel @Inject constructor(
     private val searchMusicUseCase: SearchMusicUseCase,
     private val getSearchSuggestionsUseCase: GetSearchSuggestionsUseCase,
-    private val musicPlayerController: MusicPlayerController
+    val musicPlayerController: MusicPlayerController
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(SearchUiState())
     val uiState = _uiState.asStateFlow()
