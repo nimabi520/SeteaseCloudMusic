@@ -2,7 +2,9 @@ package com.example.seteasecloudmusic.feature.auth.domain.repository
 
 import android.content.Context
 import com.example.seteasecloudmusic.feature.auth.data.AuthService
+import com.example.seteasecloudmusic.feature.auth.data.model.AccountResponse
 import com.example.seteasecloudmusic.feature.auth.data.model.LoginResponse
+import com.example.seteasecloudmusic.feature.auth.data.model.ProfileResponse
 import com.example.seteasecloudmusic.feature.auth.domain.model.AuthSession
 import com.example.seteasecloudmusic.feature.auth.domain.model.LoginMethod
 import com.example.seteasecloudmusic.feature.auth.domain.model.QrLoginStart
@@ -198,7 +200,7 @@ class AuthRepositoryImpl @Inject constructor(
             return session
         }
 
-        val snapshot = fetchProfileSnapshot() ?: return session
+        val snapshot = fetchProfileSnapshot(session.userId) ?: return session
         return session.copy(
             userId = session.userId ?: snapshot.userId,
             nickname = session.nickname ?: snapshot.nickname,
@@ -206,40 +208,87 @@ class AuthRepositoryImpl @Inject constructor(
         )
     }
 
-    private suspend fun fetchProfileSnapshot(): ProfileSnapshot? {
+    private suspend fun fetchProfileSnapshot(currentUserId: Long?): ProfileSnapshot? {
         return try {
-            val response = authService.getLoginStatus(System.currentTimeMillis())
-            if (!response.isSuccessful) {
-                return null
-            }
+            val accountSnapshot = fetchUserAccountSnapshot()
+            val detailUserId = currentUserId
+                ?: accountSnapshot?.userId
+            val detailSnapshot = detailUserId?.let { fetchUserDetailSnapshot(it) }
 
-            val body = response.body() ?: return null
-            if (body.code != 200) {
-                return null
-            }
-
-            val nestedCode = body.data?.code ?: 200
-            if (nestedCode != 200) {
-                return null
-            }
-
-            val profile = body.data?.profile ?: body.profile
-            val account = body.data?.account ?: body.account
-            val snapshot = ProfileSnapshot(
-                userId = profile?.userId ?: account?.id,
-                nickname = profile?.nickname?.takeIf { it.isNotBlank() },
-                avatarUrl = profile?.avatarUrl?.takeIf { it.isNotBlank() }
+            mergeProfileSnapshots(
+                accountSnapshot,
+                detailSnapshot
             )
-
-            if (snapshot.userId == null && snapshot.nickname == null && snapshot.avatarUrl == null) {
-                null
-            } else {
-                snapshot
-            }
         } catch (e: Exception) {
             android.util.Log.e("AuthRepositoryImpl", "Failed to fetch profile snapshot", e)
             null
         }
+    }
+
+    private suspend fun fetchUserAccountSnapshot(): ProfileSnapshot? {
+        val response = authService.getUserAccount(System.currentTimeMillis())
+        if (!response.isSuccessful) {
+            return null
+        }
+
+        val body = response.body() ?: return null
+        if (body.code != 200) {
+            return null
+        }
+
+        return buildProfileSnapshot(
+            profile = body.profile,
+            account = body.account
+        )
+    }
+
+    private suspend fun fetchUserDetailSnapshot(userId: Long): ProfileSnapshot? {
+        val response = authService.getUserDetail(userId, System.currentTimeMillis())
+        if (!response.isSuccessful) {
+            return null
+        }
+
+        val body = response.body() ?: return null
+        if (body.code != 200) {
+            return null
+        }
+
+        return buildProfileSnapshot(
+            profile = body.profile,
+            account = null
+        )
+    }
+
+    private fun buildProfileSnapshot(
+        profile: ProfileResponse?,
+        account: AccountResponse?
+    ): ProfileSnapshot? {
+        val accountId = account
+            ?.takeUnless { it.isAnonymousAccount() }
+            ?.id
+        val snapshot = ProfileSnapshot(
+            userId = profile?.userId ?: accountId,
+            nickname = profile?.nickname?.takeIf { it.isNotBlank() },
+            avatarUrl = profile?.avatarUrl?.takeIf { it.isNotBlank() }
+        )
+
+        return snapshot.takeUnless { it.isEmpty() }
+    }
+
+    private fun mergeProfileSnapshots(vararg snapshots: ProfileSnapshot?): ProfileSnapshot? {
+        val merged = snapshots.filterNotNull().fold(ProfileSnapshot(null, null, null)) { acc, snapshot ->
+            ProfileSnapshot(
+                userId = acc.userId ?: snapshot.userId,
+                nickname = acc.nickname ?: snapshot.nickname,
+                avatarUrl = acc.avatarUrl ?: snapshot.avatarUrl
+            )
+        }
+
+        return merged.takeUnless { it.isEmpty() }
+    }
+
+    private fun AccountResponse.isAnonymousAccount(): Boolean {
+        return anonimousUser == true || anonymousUser == true
     }
 
     private fun hasMissingProfile(session: AuthSession): Boolean {
@@ -302,14 +351,18 @@ class AuthRepositoryImpl @Inject constructor(
         context.getSharedPreferences(COOKIE_PREF_NAME, Context.MODE_PRIVATE)
             .edit()
             .putString(COOKIE_KEY, cookie)
-            .apply()
+            .commit()
     }
 
     private data class ProfileSnapshot(
         val userId: Long?,
         val nickname: String?,
         val avatarUrl: String?
-    )
+    ) {
+        fun isEmpty(): Boolean {
+            return userId == null && nickname == null && avatarUrl == null
+        }
+    }
 
     companion object {
         private const val PREF_NAME = "auth_prefs"

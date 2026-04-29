@@ -14,7 +14,9 @@ data class LoginResponse(
 )
 
 data class AccountResponse(
-    val id: Long? = null
+    val id: Long? = null,
+    val anonimousUser: Boolean? = null,
+    val anonymousUser: Boolean? = null
 )
 
 data class ProfileResponse(
@@ -26,17 +28,18 @@ data class ProfileResponse(
 )
 
 /**
- * 登录态检查接口响应体。
+ * 用户账号信息接口响应体。
  */
-data class LoginStatusResponse(
+data class UserAccountResponse(
     val code: Int = 0,
-    val data: LoginStatusData? = null,
     val account: AccountResponse? = null,
     val profile: ProfileResponse? = null
 )
 
-data class LoginStatusData(
+/**
+ * 用户详情接口响应体。
+ */
+data class UserDetailResponse(
     val code: Int = 0,
-    val account: AccountResponse? = null,
     val profile: ProfileResponse? = null
 )
