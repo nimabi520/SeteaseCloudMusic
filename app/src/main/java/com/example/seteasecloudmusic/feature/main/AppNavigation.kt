@@ -828,8 +828,8 @@ fun AppNavigation(
                 onClose = { showNowPlaying = false },
                 onPlayPause = { searchViewModel.onMiniPlayerPlayPause() },
                 onNext = { searchViewModel.onMiniPlayerNext() },
-                onPrevious = { /* TODO: 接 PlayerViewModel 或 controller 后补 */ },
-                onSeekTo = { /* TODO: 接 PlayerViewModel 或 controller 后补 */ }
+                onPrevious = { /* TODO */ },
+                onSeekTo = { /* TODO */ }
             )
         }
 
