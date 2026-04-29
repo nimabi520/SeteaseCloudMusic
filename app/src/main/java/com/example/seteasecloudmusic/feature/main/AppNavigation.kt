@@ -282,6 +282,7 @@ fun AppNavigation(
     LaunchedEffect(showAccountSheet) {
         if (showAccountSheet) {
             mountAccountOverlay = true
+            authViewModel.onAccountSheetOpened()
         }
     }
 
