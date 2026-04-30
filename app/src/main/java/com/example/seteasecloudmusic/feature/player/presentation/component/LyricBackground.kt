@@ -75,9 +75,9 @@ fun LyricBackground(
                 contentDescription = null,
                 modifier = Modifier
                     .fillMaxSize()
-                    .blur(80.dp),
+                    .blur(60.dp),
                 contentScale = ContentScale.Crop,
-                alpha = 0.3f
+                alpha = 0.95f
             )
         } else {
             // 低版本：使用预模糊的 bitmap
@@ -88,7 +88,7 @@ fun LyricBackground(
                     contentDescription = null,
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop,
-                    alpha = 0.3f
+                    alpha = 0.95f
                 )
             } else {
                 AsyncImage(
@@ -96,40 +96,36 @@ fun LyricBackground(
                     contentDescription = null,
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop,
-                    alpha = 0.15f
+                    alpha = 0.9f
                 )
             }
-            // 兜底暗色遮罩，补偿低版本模糊不足
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.5f))
-            )
         }
 
+        // 轻度的径向色彩叠加，增强歌词可读性但不形成半透明卡片感
         Canvas(modifier = Modifier.fillMaxSize()) {
             drawRect(
                 brush = Brush.radialGradient(
                     colors = listOf(
-                        dominantColor.copy(alpha = 0.5f),
-                        dominantColor.copy(alpha = 0.15f),
-                        Color.Black.copy(alpha = 0.85f)
+                        dominantColor.copy(alpha = 0.18f),
+                        dominantColor.copy(alpha = 0.08f),
+                        Color.Black.copy(alpha = 0.6f)
                     ),
-                    center = Offset(size.width * 0.5f, size.height * 0.4f),
+                    center = Offset(size.width * 0.5f, size.height * 0.35f),
                     radius = size.maxDimension * 0.8f
                 ),
                 size = size
             )
         }
 
+        // 竖直渐变以保证底部控制区有足够对比
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(
                     Brush.verticalGradient(
                         colors = listOf(
-                            Color.Black.copy(alpha = 0.4f),
                             Color.Transparent,
+                            Color.Black.copy(alpha = 0.25f),
                             Color.Black.copy(alpha = 0.6f)
                         )
                     )

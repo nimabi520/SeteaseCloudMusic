@@ -28,7 +28,7 @@ fun WordByWordLyric(
     isBgLine: Boolean,
     modifier: Modifier = Modifier
 ) {
-    val baseTextSize = if (isBgLine) 18.sp else 24.sp
+    val baseTextSize = if (isBgLine) 18.sp else 40.sp
 
     FlowRow(
         modifier = modifier.fillMaxWidth(),
@@ -39,14 +39,14 @@ fun WordByWordLyric(
             val progress = calculateWordProgress(word, currentPositionMs)
 
             val brightness = when {
-                progress <= 0f -> 0.35f
+                progress <= 0f -> 0.28f
                 progress >= 1f -> 1.0f
-                else -> 0.35f + 0.65f * easeOutCubic(progress)
+                else -> 0.28f + 0.72f * easeOutCubic(progress)
             }
 
-            val isEmphasized = duration > 1000 && progress in 0.05f..0.95f
-            val emphasizeScale = if (isEmphasized) 1.04f else 1f
-            val glowAlpha = if (isEmphasized && progress < 1f) 0.4f * progress else 0f
+            val isEmphasized = duration > 800 && progress in 0.05f..0.95f
+            val emphasizeScale = if (isEmphasized) 1.06f else 1f
+            val glowAlpha = if (isEmphasized && progress < 1f) 0.55f * progress else 0f
 
             val fontWeight = when {
                 progress >= 1f -> FontWeight.SemiBold
@@ -68,7 +68,7 @@ fun WordByWordLyric(
                     color = Color.White.copy(alpha = brightness),
                     shadow = if (glowAlpha > 0.01f) Shadow(
                         color = Color.White.copy(alpha = glowAlpha),
-                        blurRadius = 12f,
+                        blurRadius = 18f,
                         offset = Offset(0f, 0f)
                     ) else null
                 ),

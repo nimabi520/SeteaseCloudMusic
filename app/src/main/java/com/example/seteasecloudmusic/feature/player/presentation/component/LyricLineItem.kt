@@ -46,9 +46,9 @@ fun LyricLineItem(
     )
 
     val targetScale = when {
-        line.isBG && isActive -> 0.78f
-        line.isBG -> 0.72f
-        isActive -> 1.03f
+        line.isBG && isActive -> 0.92f
+        line.isBG -> 0.88f
+        isActive -> 1.02f
         else -> 1f
     }
     val scale by animateFloatAsState(targetScale, animationSpec = springSpec, label = "scale")
@@ -58,11 +58,11 @@ fun LyricLineItem(
         else -> Alignment.Start
     }
     val sidePadding = if (line.isDuet) 52.dp else 22.dp
-    val farLineAlphaPenalty = when {
-        distanceFromActive == 0 -> 1f
-        distanceFromActive == 1 -> 0.96f
-        distanceFromActive == 2 -> 0.9f
-        else -> 0.82f
+    val farLineAlphaPenalty = when (distanceFromActive) {
+        0 -> 1f
+        1 -> 0.36f
+        2 -> 0.18f
+        else -> 0.08f
     }
 
     Column(
@@ -100,12 +100,21 @@ fun LyricLineItem(
                 isBgLine = line.isBG
             )
         } else {
+            // 更靠近截图的字号与透明度规则：当前行大字号，其他行明显虚化
+            val fontSize = when {
+                line.isBG -> 18.sp
+                isActive -> 44.sp
+                else -> 26.sp
+            }
+
+            val colorAlpha = if (isActive) 1f else farLineAlphaPenalty
+
             Text(
                 text = mainText,
                 style = MaterialTheme.typography.headlineSmall.copy(
-                    fontSize = if (line.isBG) 19.sp else 33.sp,
+                    fontSize = fontSize,
                     fontWeight = if (isActive) FontWeight.SemiBold else FontWeight.Normal,
-                    color = if (isActive) Color.White else Color.White.copy(alpha = 0.52f)
+                    color = Color.White.copy(alpha = colorAlpha)
                 )
             )
         }
