@@ -1,38 +1,68 @@
 package com.example.seteasecloudmusic.feature.player.presentation
 
 import androidx.lifecycle.ViewModel
-import com.example.seteasecloudmusic.core.model.Track
+import androidx.lifecycle.viewModelScope
 import com.example.seteasecloudmusic.core.player.MusicPlayerController
 import com.example.seteasecloudmusic.core.player.PlaybackState
 import com.example.seteasecloudmusic.core.player.PlayerStatus
+import com.example.seteasecloudmusic.feature.player.domain.GetLyricsUseCase
+import com.example.seteasecloudmusic.feature.player.domain.model.ParsedLyrics
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
+import javax.inject.Inject
 
-/**
- * 播放器 ViewModel：
- * 1) 对 UI 暴露只读播放状态
- * 2) 转发播放控制命令
- * 3) 统一处理 connect/release 生命周期入口
- */
-class PlayerViewModel(
-    private val controller: MusicPlayerController
-) : ViewModel(){
+@HiltViewModel
+class PlayerViewModel @Inject constructor(
+    private val controller: MusicPlayerController,
+    private val getLyricsUseCase: GetLyricsUseCase
+) : ViewModel() {
 
-    // 直接复用 Controller 内部的状态流，避免重复维护一份状态
     val playbackState: StateFlow<PlaybackState> = controller.playbackState
 
-    /** 建立与 MusicService 的连接 */
-    fun connect() {
-        controller.connect()
+    private val _lyricsState = MutableStateFlow<LyricsUiState>(LyricsUiState.Idle)
+    val lyricsState: StateFlow<LyricsUiState> = _lyricsState.asStateFlow()
+
+    val currentPositionMs: StateFlow<Int> = controller.playbackState
+        .map { it.currentPositionMs }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(), 0)
+
+    val activeLineIndex: StateFlow<Int> = combine(_lyricsState, currentPositionMs) { state, pos ->
+        if (state !is LyricsUiState.Success) return@combine -1
+        state.lyrics.lines.indexOfLast { it.startTime <= pos }.coerceAtLeast(0)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(), 0)
+
+    private var loadLyricsJob: Job? = null
+
+    fun loadLyrics(songId: Long) {
+        loadLyricsJob?.cancel()
+        loadLyricsJob = viewModelScope.launch {
+            _lyricsState.value = LyricsUiState.Loading
+            getLyricsUseCase(songId)
+                .onSuccess { _lyricsState.value = LyricsUiState.Success(it) }
+                .onFailure { _lyricsState.value = LyricsUiState.Error(it.message) }
+        }
+    }
+
+    fun clearLyrics() {
+        _lyricsState.value = LyricsUiState.Idle
     }
 
     fun onPlayPause() {
-        when(playbackState.value.status) {
+        when (playbackState.value.status) {
             PlayerStatus.PLAYING -> controller.pause()
-            PlayerStatus.PAUSED -> controller.pause()
+            PlayerStatus.PAUSED -> controller.resume()
             PlayerStatus.BUFFERING -> Unit
             PlayerStatus.IDLE,
             PlayerStatus.ENDED,
-            PlayerStatus.ERROR ->  controller.replayCurrent()
+            PlayerStatus.ERROR -> controller.replayCurrent()
         }
     }
 
@@ -47,10 +77,11 @@ class PlayerViewModel(
     fun seekTo(positionMs: Int) {
         controller.seekTo(positionMs)
     }
+}
 
-    override  fun onCleared() {
-        // ViewModel 销毁时释放控制器，避免监听器和协程泄漏
-        controller.release()
-        super.onCleared()
-    }
+sealed class LyricsUiState {
+    object Idle : LyricsUiState()
+    object Loading : LyricsUiState()
+    data class Success(val lyrics: ParsedLyrics) : LyricsUiState()
+    data class Error(val message: String?) : LyricsUiState()
 }

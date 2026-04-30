@@ -435,7 +435,6 @@ class SearchViewModel @Inject constructor(
 
     override fun onCleared() {
         playbackJob?.cancel()
-        musicPlayerController.release()
         super.onCleared()
     }
 }

@@ -827,14 +827,28 @@ fun AppNavigation(
                 }
         )
 
+        val playerViewModel: com.example.seteasecloudmusic.feature.player.presentation.PlayerViewModel = hiltViewModel()
+        val lyricsState by playerViewModel.lyricsState.collectAsState()
+        val currentPosition by playerViewModel.currentPositionMs.collectAsState()
+        val activeLineIndex by playerViewModel.activeLineIndex.collectAsState()
+
+        LaunchedEffect(playbackState.currentTrack?.id) {
+            playbackState.currentTrack?.id?.let { songId ->
+                playerViewModel.loadLyrics(songId)
+            } ?: playerViewModel.clearLyrics()
+        }
+
         if (showNowPlaying) {
             NowPlayingScreen(
                 playbackState = playbackState,
+                lyricsState = lyricsState,
+                currentPosition = currentPosition,
+                activeLineIndex = activeLineIndex,
                 onClose = { showNowPlaying = false },
-                onPlayPause = { searchViewModel.onMiniPlayerPlayPause() },
-                onNext = { searchViewModel.onMiniPlayerNext() },
-                onPrevious = { /* TODO: 接 PlayerViewModel 或 controller 后补 */ },
-                onSeekTo = { /* TODO: 接 PlayerViewModel 或 controller 后补 */ }
+                onPlayPause = { playerViewModel.onPlayPause() },
+                onNext = { playerViewModel.onNext() },
+                onPrevious = { playerViewModel.onPrevious() },
+                onSeekTo = { playerViewModel.seekTo(it) }
             )
         }
 

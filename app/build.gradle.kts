@@ -120,6 +120,9 @@ dependencies {
 
     implementation("io.coil-kt:coil-compose:2.7.0")
 
+    // Palette API for extracting dominant colors from album artwork
+    implementation("androidx.palette:palette-ktx:1.0.0")
+
     //hilt依赖注入框架
     implementation("com.google.dagger:hilt-android:2.59.2")
     ksp("com.google.dagger:hilt-android-compiler:2.59.2")
