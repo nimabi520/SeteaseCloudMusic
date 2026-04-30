@@ -278,7 +278,17 @@ private fun TopInfoBar(
 
 @Composable
 private fun CoverPage(track: Track?, modifier: Modifier = Modifier) {
-    Box(modifier = modifier)
+    Box(
+        modifier = modifier,
+        contentAlignment = Alignment.Center
+    ) {
+        AsyncImage(
+            model = track?.coverUrl,
+            contentDescription = null,
+            contentScale = ContentScale.Fit,
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
 }
 
 @Composable
