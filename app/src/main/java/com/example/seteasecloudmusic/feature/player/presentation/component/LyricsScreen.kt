@@ -89,14 +89,13 @@ private fun LyricsContent(
 
     LaunchedEffect(activeLineIndex, userFollowLocked, isPlaying) {
         if (activeLineIndex >= 0 && !userFollowLocked && isPlaying) {
-            // 将当前行定位到屏幕上方偏中位置，接近截图的位置（大约屏高的 35% 处）
-            val targetDp = screenHeight * 0.35f
-            val centerOffset = with(density) { -targetDp.roundToPx() }
+            // 将当前行定位到视口顶部往下约 15% 屏幕高度处（整体约 25% 屏高）
+            val scrollOffset = with(density) { (screenHeight * 0.15f).roundToPx() }
             isAutoScrolling = true
             runCatching {
                 listState.animateScrollToItem(
                     index = activeLineIndex,
-                    scrollOffset = centerOffset
+                    scrollOffset = scrollOffset
                 )
             }
             isAutoScrolling = false
@@ -107,16 +106,12 @@ private fun LyricsContent(
         resolveInterludeProgress(currentPosition, lyrics.lines)
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    Box(modifier = Modifier.fillMaxSize().padding(top = 76.dp, bottom = 300.dp)) {
         LazyColumn(
             state = listState,
             modifier = Modifier.fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally,
-            contentPadding = PaddingValues(
-                // 保证上下有足够的 overscan，同时让当前行偏上显示
-                vertical = max(220.dp, screenHeight * 0.35f),
-                horizontal = 32.dp
-            )
+            contentPadding = PaddingValues(horizontal = 32.dp)
         ) {
             itemsIndexed(
                 items = lyrics.lines,

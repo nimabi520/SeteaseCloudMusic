@@ -22,7 +22,7 @@ fun GlassProgressBar(
     backdrop: Backdrop,
     modifier: Modifier = Modifier
 ) {
-    val trackHeight = 4.dp
+    val trackHeight = 8.dp
     val shape = { RoundedRectangle(trackHeight / 2) }
 
     Box(modifier = modifier.height(trackHeight)) {
