@@ -10,7 +10,10 @@
       "Bash(curl -s \"http://57.158.26.135:3000/toplist/detail?randomCNIP=true\")",
       "Bash(curl -s \"http://57.158.26.135:3000/top/playlist?limit=5&order=hot&randomCNIP=true\")",
       "Bash(sort -t: -k1,1)",
-      "Bash(./gradlew :app:compileDebugKotlin)"
+      "Bash(./gradlew :app:compileDebugKotlin)",
+      "Bash(find /Users/halo/AndroidStudioProjects/SeteaseCloudMusic/app/src/main/res/drawable* -type f)",
+      "Bash(find /Users/halo/AndroidStudioProjects/SeteaseCloudMusic/app/src/main/res/mipmap* -type f)",
+      "Bash(find /Users/halo/AndroidStudioProjects/SeteaseCloudMusic/app/src/main/res/values* -type f)"
     ]
   }
 }

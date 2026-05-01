@@ -44,6 +44,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -61,6 +62,11 @@ import com.example.seteasecloudmusic.feature.player.presentation.component.Lyric
 import com.example.seteasecloudmusic.feature.player.presentation.component.PlayerBackground
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
+import com.kyant.backdrop.drawBackdrop
+import com.kyant.backdrop.effects.blur
+import com.kyant.backdrop.effects.lens
+import com.kyant.backdrop.effects.vibrancy
+import com.kyant.shapes.RoundedRectangle
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -149,6 +155,7 @@ fun NowPlayingScreen(
             if (isLyricsPage) {
                 TopInfoBar(
                     track = currentTrack,
+                    backdrop = backdrop,
                     onFavoriteClick = onFavoriteClick,
                     onMoreClick = onMoreClick,
                     modifier = Modifier
@@ -164,6 +171,7 @@ fun NowPlayingScreen(
             if (!isLyricsPage) {
                 CoverBottomInfo(
                     track = currentTrack,
+                    backdrop = backdrop,
                     onFavoriteClick = onFavoriteClick,
                     onMoreClick = onMoreClick,
                     modifier = Modifier.padding(horizontal = 24.dp)
@@ -182,7 +190,7 @@ fun NowPlayingScreen(
                 onLyricsClick = { scope.launch { pagerState.animateScrollToPage(1) } },
                 modifier = Modifier
                     .navigationBarsPadding()
-                    .padding(horizontal = 24.dp, vertical = 16.dp)
+                    .padding(horizontal = 14.dp, vertical = 12.dp)
             )
         }
 
@@ -212,6 +220,7 @@ private fun DragHandle(modifier: Modifier = Modifier) {
 @Composable
 private fun TopInfoBar(
     track: Track?,
+    backdrop: com.kyant.backdrop.Backdrop,
     onFavoriteClick: () -> Unit,
     onMoreClick: () -> Unit,
     modifier: Modifier = Modifier
@@ -257,22 +266,19 @@ private fun TopInfoBar(
             )
         }
 
-        IconButton(onClick = onFavoriteClick, modifier = Modifier.size(40.dp)) {
-            Icon(
-                imageVector = Icons.Default.StarBorder,
-                contentDescription = "收藏",
-                tint = Color.White.copy(alpha = 0.8f),
-                modifier = Modifier.size(24.dp)
-            )
-        }
-        IconButton(onClick = onMoreClick, modifier = Modifier.size(40.dp)) {
-            Icon(
-                imageVector = Icons.Default.MoreVert,
-                contentDescription = "更多",
-                tint = Color.White.copy(alpha = 0.8f),
-                modifier = Modifier.size(24.dp)
-            )
-        }
+        GlassCircleIconButton(
+            imageVector = Icons.Default.StarBorder,
+            contentDescription = "收藏",
+            backdrop = backdrop,
+            onClick = onFavoriteClick
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        GlassCircleIconButton(
+            imageVector = Icons.Default.MoreVert,
+            contentDescription = "更多",
+            backdrop = backdrop,
+            onClick = onMoreClick
+        )
     }
 }
 
@@ -285,8 +291,8 @@ private fun CoverPage(track: Track?, modifier: Modifier = Modifier) {
         AsyncImage(
             model = track?.coverUrl,
             contentDescription = null,
-            contentScale = ContentScale.Fit,
-            modifier = Modifier.fillMaxWidth()
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize()
         )
     }
 }
@@ -294,6 +300,7 @@ private fun CoverPage(track: Track?, modifier: Modifier = Modifier) {
 @Composable
 private fun CoverBottomInfo(
     track: Track?,
+    backdrop: com.kyant.backdrop.Backdrop,
     onFavoriteClick: () -> Unit,
     onMoreClick: () -> Unit,
     modifier: Modifier = Modifier
@@ -325,20 +332,59 @@ private fun CoverBottomInfo(
             )
         }
 
-        IconButton(onClick = onFavoriteClick) {
-            Icon(
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            GlassCircleIconButton(
                 imageVector = Icons.Default.StarBorder,
                 contentDescription = "收藏",
-                tint = Color.White.copy(alpha = 0.8f),
-                modifier = Modifier.size(28.dp)
+                backdrop = backdrop,
+                onClick = onFavoriteClick,
+                buttonSize = 42.dp,
+                iconSize = 24.dp
             )
-        }
-        IconButton(onClick = onMoreClick) {
-            Icon(
+            GlassCircleIconButton(
                 imageVector = Icons.Default.MoreVert,
                 contentDescription = "更多",
-                tint = Color.White.copy(alpha = 0.8f),
-                modifier = Modifier.size(28.dp)
+                backdrop = backdrop,
+                onClick = onMoreClick,
+                buttonSize = 42.dp,
+                iconSize = 24.dp
+            )
+        }
+    }
+}
+
+@Composable
+private fun GlassCircleIconButton(
+    imageVector: ImageVector,
+    contentDescription: String,
+    backdrop: com.kyant.backdrop.Backdrop,
+    onClick: () -> Unit,
+    buttonSize: androidx.compose.ui.unit.Dp = 38.dp,
+    iconSize: androidx.compose.ui.unit.Dp = 22.dp
+) {
+    Box(
+        modifier = Modifier
+            .size(buttonSize)
+            .clip(CircleShape)
+            .drawBackdrop(
+                backdrop = backdrop,
+                shape = { RoundedRectangle(buttonSize / 2) },
+                effects = {
+                    vibrancy()
+                    blur(2.2f.dp.toPx())
+                    lens(10f.dp.toPx(), 18f.dp.toPx())
+                },
+                onDrawSurface = { drawRect(Color.White.copy(alpha = 0.18f)) }
+            )
+            .background(Color.Black.copy(alpha = 0.10f), CircleShape),
+        contentAlignment = Alignment.Center
+    ) {
+        IconButton(onClick = onClick, modifier = Modifier.size(buttonSize)) {
+            Icon(
+                imageVector = imageVector,
+                contentDescription = contentDescription,
+                tint = Color.White.copy(alpha = 0.88f),
+                modifier = Modifier.size(iconSize)
             )
         }
     }
@@ -362,139 +408,163 @@ private fun BottomControlsGlass(
     val isPlaying = playbackState.status == PlayerStatus.PLAYING
     val progress = position.toFloat() / duration.toFloat()
 
-    Column(
-        modifier = modifier.fillMaxWidth(),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        // Progress bar with expanded touch area
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(24.dp)
-                .pointerInput(duration) {
-                    detectHorizontalDragGestures { change, _ ->
-                        val fraction = change.position.x / size.width
-                        onSeekTo((fraction.coerceIn(0f, 1f) * duration).toInt())
-                    }
-                },
-            contentAlignment = Alignment.Center
-        ) {
-            GlassProgressBar(
-                progress = progress,
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .drawBackdrop(
                 backdrop = backdrop,
-                modifier = Modifier.fillMaxWidth()
+                shape = { RoundedRectangle(28.dp) },
+                effects = {
+                    vibrancy()
+                    blur(2.8f.dp.toPx())
+                    lens(
+                        refractionHeight = 18f.dp.toPx(),
+                        refractionAmount = 34f.dp.toPx(),
+                        chromaticAberration = true
+                    )
+                },
+                onDrawSurface = { drawRect(Color.White.copy(alpha = 0.14f)) }
             )
-        }
-
-        // Time labels
-        Row(
+            .background(
+                color = Color.Black.copy(alpha = 0.10f),
+                shape = RoundedCornerShape(28.dp)
+            )
+            .padding(horizontal = 16.dp, vertical = 14.dp)
+    ) {
+        Column(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(
-                text = formatTime(position),
-                color = Color.White.copy(alpha = 0.5f),
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Medium
-            )
-            Text(
-                text = "不可用",
-                color = Color.White.copy(alpha = 0.35f),
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Medium
-            )
-            Text(
-                text = "-${formatTime(duration - position)}",
-                color = Color.White.copy(alpha = 0.5f),
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Medium
-            )
-        }
-
-        Spacer(modifier = Modifier.height(20.dp))
-
-        // Playback buttons
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceEvenly,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(onClick = onPrevious) {
-                Icon(
-                    imageVector = Icons.Default.FastRewind,
-                    contentDescription = "上一首",
-                    tint = Color.White,
-                    modifier = Modifier.size(44.dp)
+            // Progress bar with expanded touch area
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(24.dp)
+                    .pointerInput(duration) {
+                        detectHorizontalDragGestures { change, _ ->
+                            val fraction = change.position.x / size.width
+                            onSeekTo((fraction.coerceIn(0f, 1f) * duration).toInt())
+                        }
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                GlassProgressBar(
+                    progress = progress,
+                    backdrop = backdrop,
+                    modifier = Modifier.fillMaxWidth()
                 )
             }
 
-            Box(
-                modifier = Modifier
-                    .size(72.dp)
-                    .clip(CircleShape)
-                    .background(Color.White.copy(alpha = 0.12f)),
-                contentAlignment = Alignment.Center
+            // Time labels
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                IconButton(onClick = onPlayPause, modifier = Modifier.size(64.dp)) {
+                Text(
+                    text = formatTime(position),
+                    color = Color.White.copy(alpha = 0.62f),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium
+                )
+                Text(
+                    text = "不可用",
+                    color = Color.White.copy(alpha = 0.38f),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium
+                )
+                Text(
+                    text = "-${formatTime(duration - position)}",
+                    color = Color.White.copy(alpha = 0.62f),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // Playback buttons
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = onPrevious) {
                     Icon(
-                        imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                        contentDescription = if (isPlaying) "暂停" else "播放",
+                        imageVector = Icons.Default.FastRewind,
+                        contentDescription = "上一首",
                         tint = Color.White,
-                        modifier = Modifier.size(40.dp)
+                        modifier = Modifier.size(44.dp)
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .size(72.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.17f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    IconButton(onClick = onPlayPause, modifier = Modifier.size(64.dp)) {
+                        Icon(
+                            imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                            contentDescription = if (isPlaying) "暂停" else "播放",
+                            tint = Color.White,
+                            modifier = Modifier.size(40.dp)
+                        )
+                    }
+                }
+
+                IconButton(onClick = onNext) {
+                    Icon(
+                        imageVector = Icons.Default.FastForward,
+                        contentDescription = "下一首",
+                        tint = Color.White,
+                        modifier = Modifier.size(44.dp)
                     )
                 }
             }
 
-            IconButton(onClick = onNext) {
-                Icon(
-                    imageVector = Icons.Default.FastForward,
-                    contentDescription = "下一首",
-                    tint = Color.White,
-                    modifier = Modifier.size(44.dp)
-                )
-            }
-        }
+            Spacer(modifier = Modifier.height(16.dp))
 
-        Spacer(modifier = Modifier.height(16.dp))
+            // Volume bar
+            GlassVolumeBar(
+                volume = 1f,
+                backdrop = backdrop,
+                modifier = Modifier.fillMaxWidth()
+            )
 
-        // Volume bar
-        GlassVolumeBar(
-            volume = 1f,
-            backdrop = backdrop,
-            modifier = Modifier.fillMaxWidth()
-        )
+            Spacer(modifier = Modifier.height(16.dp))
 
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Bottom action buttons
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceEvenly,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(onClick = onLyricsClick, modifier = Modifier.size(48.dp)) {
-                Icon(
-                    imageVector = Icons.Default.ChatBubble,
-                    contentDescription = "歌词",
-                    tint = Color.White.copy(alpha = 0.6f),
-                    modifier = Modifier.size(24.dp)
-                )
-            }
-            IconButton(onClick = onAudioOutputClick, modifier = Modifier.size(48.dp)) {
-                Icon(
-                    imageVector = Icons.Default.Headset,
-                    contentDescription = "音频输出",
-                    tint = Color.White.copy(alpha = 0.6f),
-                    modifier = Modifier.size(24.dp)
-                )
-            }
-            IconButton(onClick = onQueueClick, modifier = Modifier.size(48.dp)) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.QueueMusic,
-                    contentDescription = "播放队列",
-                    tint = Color.White.copy(alpha = 0.6f),
-                    modifier = Modifier.size(24.dp)
-                )
+            // Bottom action buttons
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = onLyricsClick, modifier = Modifier.size(48.dp)) {
+                    Icon(
+                        imageVector = Icons.Default.ChatBubble,
+                        contentDescription = "歌词",
+                        tint = Color.White.copy(alpha = 0.68f),
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+                IconButton(onClick = onAudioOutputClick, modifier = Modifier.size(48.dp)) {
+                    Icon(
+                        imageVector = Icons.Default.Headset,
+                        contentDescription = "音频输出",
+                        tint = Color.White.copy(alpha = 0.68f),
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+                IconButton(onClick = onQueueClick, modifier = Modifier.size(48.dp)) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.QueueMusic,
+                        contentDescription = "播放队列",
+                        tint = Color.White.copy(alpha = 0.68f),
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
             }
         }
     }

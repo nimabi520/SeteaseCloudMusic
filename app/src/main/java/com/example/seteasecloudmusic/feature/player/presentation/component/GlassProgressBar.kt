@@ -35,10 +35,10 @@ fun GlassProgressBar(
                     shape = shape,
                     effects = {
                         vibrancy()
-                        blur(1.5f.dp.toPx())
-                        lens(4f.dp.toPx(), 8f.dp.toPx())
+                        blur(2.4f.dp.toPx())
+                        lens(10f.dp.toPx(), 18f.dp.toPx())
                     },
-                    onDrawSurface = { drawRect(Color.White.copy(alpha = 0.15f)) }
+                    onDrawSurface = { drawRect(Color.White.copy(alpha = 0.22f)) }
                 )
         )
         // Fill: opaque white
@@ -51,9 +51,9 @@ fun GlassProgressBar(
                     shape = shape,
                     effects = {
                         vibrancy()
-                        blur(0.8f.dp.toPx())
+                        blur(1.2f.dp.toPx())
                     },
-                    onDrawSurface = { drawRect(Color.White.copy(alpha = 0.9f)) }
+                    onDrawSurface = { drawRect(Color.White.copy(alpha = 0.96f)) }
                 )
         )
     }
