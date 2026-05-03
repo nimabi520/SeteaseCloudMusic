@@ -49,6 +49,9 @@ android {
 }
 
 dependencies {
+    // 本地 aar 依赖
+    implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.jar", "*.aar"))))
+
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
     implementation(libs.material)
