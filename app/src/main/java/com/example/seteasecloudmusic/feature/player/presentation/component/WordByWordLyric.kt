@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.sp
 import com.example.seteasecloudmusic.feature.player.domain.model.LyricWord
 import kotlin.math.pow
 
+@Deprecated("Replaced by AppleStyleLyricLine", ReplaceWith("AppleStyleLyricLine"))
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun WordByWordLyric(

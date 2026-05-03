@@ -116,6 +116,9 @@ fun NowPlayingScreen(
     // 控制区显示状态
     var showControl by rememberSaveable { mutableStateOf(true) }
 
+    // 翻译显示状态
+    var showTranslation by rememberSaveable { mutableStateOf(true) }
+
     // 歌词页动画
     val alphaAnim = remember { Animatable(0f) }
     LaunchedEffect(nowPage) {
@@ -400,6 +403,7 @@ fun NowPlayingScreen(
                                 currentPosition = currentPosition,
                                 activeLineIndex = activeLineIndex,
                                 isPlaying = isPlaying,
+                                showTranslation = showTranslation,
                                 onLineClick = onSeekTo
                             )
                         }
@@ -431,6 +435,43 @@ fun NowPlayingScreen(
                         targetHeight = { (it / 1.4).toInt() }
                     )
                 ) {
+                    // 翻译切换按钮（仅歌词页显示）
+                    if (nowPage == NowPlayingPage.Lyric) {
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 32.dp)
+                                .graphicsLayer {
+                                    compositingStrategy = CompositingStrategy.ModulateAlpha
+                                    alpha = alphaAnim.value
+                                },
+                            horizontalArrangement = Arrangement.End
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .alpha(0.4f)
+                                    .clickable(
+                                        onClick = { showTranslation = !showTranslation },
+                                        indication = null,
+                                        interactionSource = remember { MutableInteractionSource() }
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                AnimatedContent(
+                                    targetState = showTranslation,
+                                    transitionSpec = { fadeIn() togetherWith fadeOut() }
+                                ) { show ->
+                                    Text(
+                                        text = "译",
+                                        fontSize = 18.sp,
+                                        fontWeight = if (show) FontWeight.Bold else FontWeight.Normal,
+                                        color = Color.White.copy(alpha = if (show) 1f else 0.4f)
+                                    )
+                                }
+                            }
+                        }
+                    }
+
                     PlayerControl(
                         isPlaying = isPlaying,
                         position = position,

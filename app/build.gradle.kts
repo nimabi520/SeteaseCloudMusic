@@ -46,6 +46,13 @@ android {
     composeOptions {
         kotlinCompilerExtensionVersion = "2.1.0"
     }
+
+    packaging {
+        jniLibs {
+            // 解决 16KB 页面对齐警告
+            useLegacyPackaging = true
+        }
+    }
 }
 
 dependencies {
