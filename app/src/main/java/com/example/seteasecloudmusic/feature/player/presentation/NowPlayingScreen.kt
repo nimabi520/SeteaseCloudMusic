@@ -59,7 +59,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
@@ -180,7 +182,7 @@ fun NowPlayingScreen(
                             .fillMaxSize()
                             .clickable(enabled = false, onClick = {})
                     ) {
-                        // 大封面 - Apple Music 风格正方形居中
+                        // 大封面 - 左右贴边，上下边缘渐变模糊融入背景
                         Box(
                             Modifier
                                 .weight(1f)
@@ -206,20 +208,36 @@ fun NowPlayingScreen(
                                 visibilityThreshold = 0.001f
                             )
 
-                            val sidePad = (24 + 12 * scale).dp
+                            val sidePad = (0 + 12 * scale).dp
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(horizontal = sidePad)
                                     .aspectRatio(1f)
+                                    .graphicsLayer {
+                                        compositingStrategy = CompositingStrategy.Offscreen
+                                    }
+                                    .drawWithContent {
+                                        drawContent()
+                                        // 上下边缘渐变淡出，模拟融入背景效果
+                                        drawRect(
+                                            brush = Brush.verticalGradient(
+                                                0.00f to Color.Black,
+                                                0.06f to Color.Black,
+                                                0.12f to Color.White,
+                                                0.88f to Color.White,
+                                                0.94f to Color.Black,
+                                                1.00f to Color.Black
+                                            ),
+                                            blendMode = BlendMode.DstIn
+                                        )
+                                    }
                             ) {
                                 AsyncImage(
                                     model = currentTrack?.coverUrl,
                                     contentDescription = null,
                                     contentScale = ContentScale.Crop,
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .clip(RoundedCornerShape(12.dp))
+                                    modifier = Modifier.fillMaxSize()
                                 )
                             }
                         }
