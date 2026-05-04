@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -179,15 +180,12 @@ fun NowPlayingScreen(
                             .fillMaxSize()
                             .clickable(enabled = false, onClick = {})
                     ) {
-                        // 大封面（占 59.5% 高度）
+                        // 大封面 - Apple Music 风格正方形居中
                         Box(
                             Modifier
                                 .weight(1f)
-                                .fillMaxWidth()
-                                .padding(top = 20.dp)
-                                .padding(horizontal = 15.dp)
-                                .padding(bottom = 33.dp),
-                            contentAlignment = Alignment.BottomCenter
+                                .fillMaxWidth(),
+                            contentAlignment = Alignment.Center
                         ) {
                             val springSpec = remember {
                                 SpringSpec<Float>(
@@ -208,19 +206,20 @@ fun NowPlayingScreen(
                                 visibilityThreshold = 0.001f
                             )
 
-                            val dp = (7 + (27 * scale)).dp
+                            val sidePad = (24 + 12 * scale).dp
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(start = dp, end = dp, bottom = dp)
+                                    .padding(horizontal = sidePad)
+                                    .aspectRatio(1f)
                             ) {
                                 AsyncImage(
                                     model = currentTrack?.coverUrl,
                                     contentDescription = null,
                                     contentScale = ContentScale.Crop,
                                     modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(16.dp))
+                                        .fillMaxSize()
+                                        .clip(RoundedCornerShape(12.dp))
                                 )
                             }
                         }

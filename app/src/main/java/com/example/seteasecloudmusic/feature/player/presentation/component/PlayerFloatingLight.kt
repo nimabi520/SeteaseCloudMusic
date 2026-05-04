@@ -71,21 +71,21 @@ fun PlayerFloatingLight(
     }
 
     Box(modifier = modifier.fillMaxSize()) {
-        // 第一层：Ken Burns 动效层
-        KenBurnsBackgroundLayer(
-            drawable = processedDrawable,
-            isPlaying = isPlaying
-        )
-
-        // 第二层：半透明遮罩层（0.618 黄金比例透明度）
-        OverlayLayer(drawable = processedDrawable)
-
-        // 第三层：黑色兜底
+        // 底层：黑色兜底（最先声明 = 最底层）
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(Color.Black)
         )
+
+        // 中层：Ken Burns 动效层（模糊封面缓动动画）
+        KenBurnsBackgroundLayer(
+            drawable = processedDrawable,
+            isPlaying = isPlaying
+        )
+
+        // 顶层：半透明遮罩层（暗化 Ken Burns 效果）
+        OverlayLayer(drawable = processedDrawable)
     }
 }
 
