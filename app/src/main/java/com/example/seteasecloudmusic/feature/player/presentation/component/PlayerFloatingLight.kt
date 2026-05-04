@@ -38,9 +38,11 @@ import coil.compose.AsyncImage
 import coil.imageLoader
 import coil.request.ImageRequest
 import com.example.seteasecloudmusic.core.util.BitmapResolver
+import androidx.compose.ui.draw.BlurredEdgeTreatment
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.unit.dp
 import com.flaviofaria.kenburnsview.KenBurnsView
 import com.flaviofaria.kenburnsview.RandomTransitionGenerator
-import com.google.android.renderscript.Toolkit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -121,7 +123,9 @@ private fun KenBurnsBackgroundLayer(
                 }
             }
         },
-        modifier = Modifier.fillMaxSize()
+        modifier = Modifier
+            .fillMaxSize()
+            .blur(25.dp, edgeTreatment = BlurredEdgeTreatment.Unbounded)
     )
 }
 
@@ -184,7 +188,5 @@ private fun imageResolve(image: Bitmap, moreLight: Boolean = false): Bitmap {
         canvas.drawColor(0x40000000.toInt())
     }
 
-    // 高斯模糊
-    resizedBitmap = Toolkit.blur(resizedBitmap, 25)
     return resizedBitmap
 }
