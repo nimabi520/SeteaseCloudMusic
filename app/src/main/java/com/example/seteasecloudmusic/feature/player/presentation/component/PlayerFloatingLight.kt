@@ -38,9 +38,6 @@ import coil.compose.AsyncImage
 import coil.imageLoader
 import coil.request.ImageRequest
 import com.example.seteasecloudmusic.core.util.BitmapResolver
-import androidx.compose.ui.draw.BlurredEdgeTreatment
-import androidx.compose.ui.draw.blur
-import androidx.compose.ui.unit.dp
 import com.flaviofaria.kenburnsview.KenBurnsView
 import com.flaviofaria.kenburnsview.RandomTransitionGenerator
 import kotlinx.coroutines.Dispatchers
@@ -123,9 +120,7 @@ private fun KenBurnsBackgroundLayer(
                 }
             }
         },
-        modifier = Modifier
-            .fillMaxSize()
-            .blur(25.dp, edgeTreatment = BlurredEdgeTreatment.Unbounded)
+        modifier = Modifier.fillMaxSize()
     )
 }
 
@@ -188,5 +183,22 @@ private fun imageResolve(image: Bitmap, moreLight: Boolean = false): Bitmap {
         canvas.drawColor(0x40000000.toInt())
     }
 
+    // 高斯模糊 — 缩放法，不依赖 native 库，规避 16KB 页面对齐问题
+    resizedBitmap = bitmapBlur(resizedBitmap)
     return resizedBitmap
+}
+
+/**
+ * 通过先缩小再放大实现高斯模糊效果。
+ * 纯 Bitmap 操作，无 native 依赖，所有 API 级别兼容。
+ */
+private fun bitmapBlur(source: Bitmap, blurRadius: Int = 25): Bitmap {
+    val w = source.width
+    val h = source.height
+    val scale = (blurRadius / 2).coerceAtLeast(2)
+    val smallW = (w / scale).coerceAtLeast(1)
+    val smallH = (h / scale).coerceAtLeast(1)
+
+    val scaled = Bitmap.createScaledBitmap(source, smallW, smallH, true)
+    return Bitmap.createScaledBitmap(scaled, w, h, true)
 }
