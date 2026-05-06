@@ -13,7 +13,8 @@
       "Bash(./gradlew :app:compileDebugKotlin)",
       "Bash(find /Users/halo/AndroidStudioProjects/SeteaseCloudMusic/app/src/main/res/drawable* -type f)",
       "Bash(find /Users/halo/AndroidStudioProjects/SeteaseCloudMusic/app/src/main/res/mipmap* -type f)",
-      "Bash(find /Users/halo/AndroidStudioProjects/SeteaseCloudMusic/app/src/main/res/values* -type f)"
+      "Bash(find /Users/halo/AndroidStudioProjects/SeteaseCloudMusic/app/src/main/res/values* -type f)",
+      "Bash(./gradlew assembleDebug)"
     ]
   }
 }

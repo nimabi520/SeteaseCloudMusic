@@ -1,94 +1,69 @@
 package com.example.seteasecloudmusic.feature.player.presentation
 
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.Crossfade
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.EaseOutQuart
-import androidx.compose.animation.core.SpringSpec
-import androidx.compose.animation.core.TweenSpec
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.expandVertically
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.EaseInCubic
+import androidx.compose.animation.core.EaseOutCubic
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
-import androidx.compose.animation.shrinkVertically
-import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.Canvas
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.FavoriteBorder
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.CompositingStrategy
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import coil.ImageLoader
+import coil.request.ImageRequest
+import coil.request.SuccessResult
+import androidx.core.graphics.drawable.toBitmap
+import androidx.palette.graphics.Palette
 import com.example.seteasecloudmusic.core.player.PlaybackState
 import com.example.seteasecloudmusic.core.player.PlayerStatus
-import com.example.seteasecloudmusic.feature.player.presentation.component.LyricsScreen
-import com.example.seteasecloudmusic.feature.player.presentation.component.PlayerBackground
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
+import com.example.seteasecloudmusic.core.util.BitmapResolver
+import kotlin.math.roundToInt
 
-// 页面常量
-private object NowPlayingPage {
-    const val Album = "Album"
-    const val Lyric = "Lyric"
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NowPlayingScreen(
     playbackState: PlaybackState,
@@ -99,656 +74,275 @@ fun NowPlayingScreen(
     onPlayPause: () -> Unit,
     onNext: () -> Unit,
     onPrevious: () -> Unit,
-    onSeekTo: (Int) -> Unit,
-    onFavoriteClick: () -> Unit = {},
-    onMoreClick: () -> Unit = {},
-    onKaraokeClick: () -> Unit = {},
-    onQueueClick: () -> Unit = {},
-    onAudioOutputClick: () -> Unit = {}
+    onSeekTo: (Int) -> Unit
 ) {
-    val currentTrack = playbackState.currentTrack
-    val isPlaying = playbackState.status == PlayerStatus.PLAYING
-    val duration = playbackState.durationMs.coerceAtLeast(1)
-    val position = playbackState.currentPositionMs.coerceIn(0, duration)
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
+    val track = playbackState.currentTrack
+    val coverUrl = track?.coverUrl ?: track?.album?.coverUrl
+    val isPlaying = playbackState.status == PlayerStatus.PLAYING
 
-    // 页面状态
-    var nowPage by rememberSaveable { mutableStateOf(NowPlayingPage.Album) }
+    // 颜色采样状态
+    var dominantColor by remember { mutableStateOf(Color(0xFF1A1A2E)) }
 
-    // 控制区显示状态
-    var showControl by rememberSaveable { mutableStateOf(true) }
+    // 拖拽偏移量（用于滑动退出）
+    var offsetY by remember { mutableFloatStateOf(0f) }
 
-    // 翻译显示状态
-    var showTranslation by rememberSaveable { mutableStateOf(true) }
+    // 从专辑封面提取主题色
+    LaunchedEffect(coverUrl) {
+        if (coverUrl.isNullOrBlank()) {
+            dominantColor = Color(0xFF1A1A2E)
+            return@LaunchedEffect
+        }
 
-    // 歌词页动画
-    val alphaAnim = remember { Animatable(0f) }
-    LaunchedEffect(nowPage) {
-        val targetAlpha = if (nowPage == NowPlayingPage.Lyric) 1f else 0f
-        scope.launch {
-            alphaAnim.animateTo(targetAlpha)
+        try {
+            val request = ImageRequest.Builder(context)
+                .data(coverUrl)
+                .allowHardware(false)
+                .size(96)
+                .build()
+
+            val imageLoader = ImageLoader(context)
+            val result = imageLoader.execute(request)
+            val drawable = (result as? SuccessResult)?.drawable
+
+            if (drawable != null) {
+                val bitmap = drawable.toBitmap()
+                val compressed = BitmapResolver.bitmapCompress(bitmap, 96)
+                val palette = Palette.from(compressed).generate()
+                val swatch = palette.darkVibrantSwatch
+                    ?: palette.darkMutedSwatch
+                    ?: palette.vibrantSwatch
+                    ?: palette.dominantSwatch
+
+                if (swatch != null) {
+                    dominantColor = Color(swatch.rgb)
+                }
+            }
+        } catch (_: Exception) {
+            // 保持默认颜色
         }
     }
 
-    // 触摸超时自动隐藏控制区（歌词页）
-    LaunchedEffect(showControl, nowPage) {
-        if (nowPage == NowPlayingPage.Lyric && showControl) {
-            delay(2500)
-            showControl = false
-        }
-    }
+    BackHandler(onBack = onClose)
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        // ===== Layer 0: 流光背景 =====
-        PlayerBackground(
-            coverUrl = currentTrack?.coverUrl,
-            isPlaying = isPlaying
-        )
-
-        // ===== Layer 1: 小把手 =====
-        Column(Modifier.fillMaxWidth()) {
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .statusBarsPadding()
-                    .padding(top = 20.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Box(
-                    Modifier
-                        .size(width = 32.dp, height = 4.5.dp)
-                        .background(
-                            Color(0x4DFFFFFF),
-                            RoundedCornerShape(2.25.dp)
-                        )
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .offset { IntOffset(0, offsetY.toInt()) }
+            .pointerInput(Unit) {
+                detectVerticalDragGestures(
+                    onDragEnd = {
+                        if (offsetY > 200.dp.toPx()) {
+                            onClose()
+                        } else {
+                            offsetY = 0f
+                        }
+                    },
+                    onVerticalDrag = { change, dragAmount ->
+                        change.consume()
+                        if (dragAmount > 0f || offsetY > 0f) {
+                            offsetY = (offsetY + dragAmount).coerceAtLeast(0f)
+                        }
+                    }
                 )
             }
-        }
-
-        // ===== Layer 2: 主内容区（Crossfade 切换） =====
-        Crossfade(
-            targetState = nowPage,
-            modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding()
-                .padding(top = 22.dp)
-        ) { currentPage ->
-            when (currentPage) {
-                NowPlayingPage.Album -> {
-                    // 封面页布局
-                    Column(
-                        Modifier
-                            .fillMaxSize()
-                            .clickable(enabled = false, onClick = {})
-                    ) {
-                        // 大封面 - 左右贴边，上下边缘渐变模糊融入背景
-                        Box(
-                            Modifier
-                                .weight(1f)
-                                .fillMaxWidth(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            val springSpec = remember {
-                                SpringSpec<Float>(
-                                    stiffness = 300f,
-                                    dampingRatio = 1f,
-                                    visibilityThreshold = 0.001f
-                                )
-                            }
-                            val tweenSpec = remember {
-                                TweenSpec<Float>(
-                                    durationMillis = 350,
-                                    easing = EaseOutQuart
-                                )
-                            }
-                            val scale by animateFloatAsState(
-                                targetValue = if (isPlaying) 0f else 1f,
-                                animationSpec = if (isPlaying) springSpec else tweenSpec,
-                                visibilityThreshold = 0.001f
-                            )
-
-                            val sidePad = (0 + 12 * scale).dp
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = sidePad)
-                                    .aspectRatio(1f)
-                                    .graphicsLayer {
-                                        compositingStrategy = CompositingStrategy.Offscreen
-                                    }
-                                    .drawWithContent {
-                                        drawContent()
-                                        // 上下边缘渐变淡出，模拟融入背景效果
-                                        drawRect(
-                                            brush = Brush.verticalGradient(
-                                                0.00f to Color.Black,
-                                                0.06f to Color.Black,
-                                                0.12f to Color.White,
-                                                0.88f to Color.White,
-                                                0.94f to Color.Black,
-                                                1.00f to Color.Black
-                                            ),
-                                            blendMode = BlendMode.DstIn
-                                        )
-                                    }
-                            ) {
-                                AsyncImage(
-                                    model = currentTrack?.coverUrl,
-                                    contentDescription = null,
-                                    contentScale = ContentScale.Crop,
-                                    modifier = Modifier.fillMaxSize()
-                                )
-                            }
-                        }
-
-                        // 歌曲信息 + 操作按钮
-                        AnimatedContent(
-                            targetState = currentTrack,
-                            transitionSpec = { fadeIn() togetherWith fadeOut() },
-                            modifier = Modifier.padding(horizontal = 32.dp)
-                        ) { track ->
-                            Row(
-                                Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column(
-                                    Modifier
-                                        .fillMaxWidth()
-                                        .weight(1f)
-                                        .padding(end = 15.dp)
-                                ) {
-                                    Text(
-                                        text = track?.title ?: "未知歌曲",
-                                        fontSize = 19.5.sp,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                    Text(
-                                        text = track?.artists?.joinToString(", ") { it.name } ?: "未知艺术家",
-                                        fontSize = 18.5.sp,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                        color = Color.White.copy(alpha = 0.35f)
-                                    )
-                                }
-
-                                // 操作按钮行
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(28.dp)
-                                            .clickable(
-                                                onClick = onFavoriteClick,
-                                                indication = null,
-                                                interactionSource = remember { MutableInteractionSource() }
-                                            ),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.FavoriteBorder,
-                                            contentDescription = "收藏",
-                                            modifier = Modifier.size(28.dp)
-                                        )
-                                    }
-
-                                    Spacer(modifier = Modifier.width(14.dp))
-
-                                    Box(
-                                        modifier = Modifier
-                                            .size(28.dp)
-                                            .clickable(
-                                                onClick = onMoreClick,
-                                                indication = null,
-                                                interactionSource = remember { MutableInteractionSource() }
-                                            ),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.MoreVert,
-                                            contentDescription = "更多",
-                                            modifier = Modifier.size(28.dp)
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                NowPlayingPage.Lyric -> {
-                    // 歌词页布局
-                    Column(Modifier.fillMaxSize()) {
-                        // 小封面条
-                        Row(
-                            Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 28.5.dp)
-                                .padding(top = 22.dp)
-                                .height(70.dp)
-                                .clickable {
-                                    nowPage = NowPlayingPage.Album
-                                    showControl = true
-                                },
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            AsyncImage(
-                                model = currentTrack?.coverUrl,
-                                contentDescription = null,
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier
-                                    .size(69.dp)
-                                    .clip(RoundedCornerShape(5.dp))
-                            )
-                            Column(
-                                Modifier
-                                    .fillMaxWidth()
-                                    .weight(1f)
-                                    .padding(start = 12.dp, end = 15.dp)
-                            ) {
-                                Text(
-                                    text = currentTrack?.title ?: "未知歌曲",
-                                    fontSize = 16.5.sp,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    fontWeight = FontWeight.Medium,
-                                    lineHeight = 16.5.sp
-                                )
-                                Text(
-                                    text = currentTrack?.artists?.joinToString(", ") { it.name } ?: "未知艺术家",
-                                    fontSize = 15.sp,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    color = Color.White.copy(alpha = 0.35f)
-                                )
-                            }
-
-                            // 操作按钮
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(28.dp)
-                                        .clickable(
-                                            onClick = onFavoriteClick,
-                                            indication = null,
-                                            interactionSource = remember { MutableInteractionSource() }
-                                        ),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.FavoriteBorder,
-                                        contentDescription = "收藏",
-                                        modifier = Modifier.size(28.dp)
-                                    )
-                                }
-
-                                Spacer(modifier = Modifier.width(14.dp))
-
-                                Box(
-                                    modifier = Modifier
-                                        .size(28.dp)
-                                        .clickable(
-                                            onClick = onMoreClick,
-                                            indication = null,
-                                            interactionSource = remember { MutableInteractionSource() }
-                                        ),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.MoreVert,
-                                        contentDescription = "更多",
-                                        modifier = Modifier.size(28.dp)
-                                    )
-                                }
-                            }
-                        }
-
-                        // 歌词视图
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .graphicsLayer {
-                                    compositingStrategy = CompositingStrategy.ModulateAlpha
-                                    alpha = alphaAnim.value
-                                }
-                        ) {
-                            LyricsScreen(
-                                lyricsState = lyricsState,
-                                currentPosition = currentPosition,
-                                activeLineIndex = activeLineIndex,
-                                isPlaying = isPlaying,
-                                showTranslation = showTranslation,
-                                onLineClick = onSeekTo
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        // ===== Layer 3: 音乐控制区 =====
-        Box(
-            Modifier
-                .fillMaxSize()
-                .statusBarsPadding(),
-            contentAlignment = Alignment.BottomCenter
-        ) {
-            Box(
-                Modifier
-                    .fillMaxHeight(0.437f)
-                    .fillMaxWidth()
-            ) {
-                androidx.compose.animation.AnimatedVisibility(
-                    visible = showControl || nowPage == NowPlayingPage.Album,
-                    enter = fadeIn() + expandVertically(
-                        expandFrom = Alignment.Top,
-                        initialHeight = { (it / 1.4).toInt() }
-                    ),
-                    exit = fadeOut() + shrinkVertically(
-                        shrinkTowards = Alignment.Top,
-                        targetHeight = { (it / 1.4).toInt() }
-                    )
-                ) {
-                    // 翻译切换按钮（仅歌词页显示）
-                    if (nowPage == NowPlayingPage.Lyric) {
-                        Row(
-                            Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 32.dp)
-                                .graphicsLayer {
-                                    compositingStrategy = CompositingStrategy.ModulateAlpha
-                                    alpha = alphaAnim.value
-                                },
-                            horizontalArrangement = Arrangement.End
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .alpha(0.4f)
-                                    .clickable(
-                                        onClick = { showTranslation = !showTranslation },
-                                        indication = null,
-                                        interactionSource = remember { MutableInteractionSource() }
-                                    ),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                AnimatedContent(
-                                    targetState = showTranslation,
-                                    transitionSpec = { fadeIn() togetherWith fadeOut() }
-                                ) { show ->
-                                    Text(
-                                        text = "译",
-                                        fontSize = 18.sp,
-                                        fontWeight = if (show) FontWeight.Bold else FontWeight.Normal,
-                                        color = Color.White.copy(alpha = if (show) 1f else 0.4f)
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    PlayerControl(
-                        isPlaying = isPlaying,
-                        position = position,
-                        duration = duration,
-                        onPlayPause = onPlayPause,
-                        onPrevious = onPrevious,
-                        onNext = onNext,
-                        onSeekTo = onSeekTo,
-                        nowPage = nowPage,
-                        onLyricsClick = {
-                            if (nowPage == NowPlayingPage.Lyric) {
-                                nowPage = NowPlayingPage.Album
-                            } else {
-                                nowPage = NowPlayingPage.Lyric
-                            }
-                            showControl = true
-                        },
-                        onPlaylistClick = onQueueClick,
-                        modifier = Modifier.padding(top = 52.dp)
-                    )
-                }
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun PlayerControl(
-    isPlaying: Boolean,
-    position: Int,
-    duration: Int,
-    onPlayPause: () -> Unit,
-    onPrevious: () -> Unit,
-    onNext: () -> Unit,
-    onSeekTo: (Int) -> Unit,
-    nowPage: String,
-    onLyricsClick: () -> Unit,
-    onPlaylistClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val sliderPosition = remember { mutableFloatStateOf(position.toFloat()) }
-    val isSliding = remember { mutableStateOf(false) }
-
-    // 更新滑块位置
-    LaunchedEffect(position) {
-        if (!isSliding.value) {
-            sliderPosition.floatValue = position.toFloat()
-        }
-    }
-
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 25.dp)
-            .padding(bottom = 15.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // 进度条
-        Slider(
-            value = sliderPosition.floatValue,
-            onValueChange = { newValue ->
-                isSliding.value = true
-                sliderPosition.floatValue = newValue
-            },
-            onValueChangeFinished = {
-                onSeekTo(sliderPosition.floatValue.toInt())
-                isSliding.value = false
-            },
-            valueRange = 0f..duration.toFloat().coerceAtLeast(0f),
-            colors = SliderDefaults.colors(
-                activeTrackColor = Color.White,
-                inactiveTrackColor = Color(0x0DFFFFFF)
-            ),
-            modifier = Modifier
-                .alpha(0.45f)
-                .height(14.dp),
-            thumb = {}
-        )
+        // ── Layer 0: 专辑封面 ──
+        if (coverUrl != null) {
+            AsyncImage(
+                model = coverUrl,
+                contentDescription = "专辑封面",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .fillMaxHeight(0.75f)
+                    .clip(RoundedCornerShape(bottomStart = 16.dp, bottomEnd = 16.dp))
+                    .align(Alignment.TopCenter)
+            )
+        } else {
+            // 无封面时的占位背景
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .fillMaxHeight(0.75f)
+                    .clip(RoundedCornerShape(bottomStart = 16.dp, bottomEnd = 16.dp))
+                    .background(Color.DarkGray)
+                    .align(Alignment.TopCenter)
+            )
+        }
 
-        // 时间标签
+        // ── Layer 1: 顶部状态栏渐变遮罩 ──
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 4.dp, horizontal = 7.dp)
-                .height(22.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    text = formatTime(position.toLong() / 1000),
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium,
-                    letterSpacing = 0.3.sp,
-                    color = Color.White.copy(alpha = 0.3f)
+                .height(100.dp)
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            Color.Black.copy(alpha = 0.5f),
+                            Color.Transparent
+                        )
+                    )
                 )
-                Text(
-                    text = "-${formatTime((duration - position).toLong() / 1000)}",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium,
-                    letterSpacing = 0.3.sp,
-                    color = Color.White.copy(alpha = 0.3f)
-                )
-            }
-        }
+                .align(Alignment.TopCenter)
+        )
 
-        // 播放控制按钮
+        // ── Layer 2: 底部渐变过渡 ──
         Box(
             modifier = Modifier
-                .weight(1f)
-                .fillMaxSize(),
-            contentAlignment = Alignment.Center
+                .fillMaxWidth()
+                .fillMaxHeight(0.4f)
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            Color.Transparent,
+                            dominantColor.copy(alpha = 0.7f),
+                            dominantColor
+                        )
+                    )
+                )
+                .align(Alignment.BottomCenter)
+        )
+
+        // ── Layer 3: 内容层 ──
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .systemBarsPadding()
         ) {
-            Row(
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // 上一首
+            // 顶部拖动手柄 + 返回按钮
+            Column(modifier = Modifier.fillMaxWidth()) {
+                // 拖动手柄（小白条）
                 Box(
                     modifier = Modifier
-                        .size(61.dp)
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            onClick = onPrevious
-                        ),
+                        .fillMaxWidth()
+                        .padding(top = 12.dp)
+                        .height(4.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        painter = painterResource(id = android.R.drawable.ic_media_previous),
-                        contentDescription = "上一首",
+                    Box(
                         modifier = Modifier
-                            .fillMaxSize()
-                            .padding(10.dp)
+                            .width(36.dp)
+                            .height(4.dp)
+                            .background(
+                                Color.White.copy(alpha = 0.6f),
+                                RoundedCornerShape(2.dp)
+                            )
                     )
                 }
 
-                Spacer(modifier = Modifier.width(43.dp))
-
-                // 播放/暂停
+                // 返回按钮
                 Box(
                     modifier = Modifier
-                        .size(58.5.dp)
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            onClick = onPlayPause
-                        ),
-                    contentAlignment = Alignment.Center
+                        .fillMaxWidth()
+                        .padding(start = 16.dp, end = 16.dp, top = 8.dp)
                 ) {
-                    AnimatedContent(
-                        targetState = isPlaying,
-                        transitionSpec = {
-                            (scaleIn(initialScale = 0.3f) + fadeIn()).togetherWith(
-                                scaleOut(targetScale = 0.3f) + fadeOut()
-                            )
-                        }
-                    ) { playing ->
+                    IconButton(
+                        onClick = onClose,
+                        modifier = Modifier.size(40.dp)
+                    ) {
                         Icon(
-                            painter = painterResource(
-                                id = if (playing) android.R.drawable.ic_media_pause
-                                else android.R.drawable.ic_media_play
-                            ),
-                            contentDescription = if (playing) "暂停" else "播放",
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(10.dp)
+                            imageVector = Icons.Filled.ExpandMore,
+                            contentDescription = "关闭",
+                            tint = Color.White,
+                            modifier = Modifier.size(32.dp)
                         )
                     }
                 }
+            }
 
-                Spacer(modifier = Modifier.width(43.dp))
+            // Spacer 把歌曲信息推到封面下方
+            Spacer(modifier = Modifier.fillMaxHeight(0.28f))
 
-                // 下一首
-                Box(
+            // 歌曲信息 + 喜欢按钮
+            if (track != null) {
+                Row(
                     modifier = Modifier
-                        .size(61.dp)
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            onClick = onNext
-                        ),
-                    contentAlignment = Alignment.Center
+                        .fillMaxWidth()
+                        .padding(horizontal = 32.dp, vertical = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        painter = painterResource(id = android.R.drawable.ic_media_next),
-                        contentDescription = "下一首",
+                    // 左侧：歌曲信息
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = track.title,
+                            color = Color.White,
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = track.artists.joinToString(" / ") { it.name }.ifBlank { "未知艺术家" },
+                            color = Color.White.copy(alpha = 0.65f),
+                            fontSize = 14.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    // 右侧：喜欢按钮
+                    IconButton(
+                        onClick = { /* TODO: 喜欢功能 */ },
+                        modifier = Modifier.size(40.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.FavoriteBorder,
+                            contentDescription = "喜欢",
+                            tint = Color.White,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                }
+            }
+
+            // 歌词区域
+            when (lyricsState) {
+                is LyricsUiState.Success -> {
+                    LyricsColumn(
+                        lyrics = lyricsState.lyrics,
+                        activeLineIndex = activeLineIndex,
+                        currentTimeMs = currentPosition,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                is LyricsUiState.Loading -> {
+                    Box(
                         modifier = Modifier
-                            .fillMaxSize()
-                            .padding(10.dp)
-                    )
+                            .weight(1f)
+                            .fillMaxWidth(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(color = Color.White)
+                    }
                 }
-            }
-        }
-
-        // 底部栏（歌词、播放列表）
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .alpha(0.4f),
-            horizontalArrangement = Arrangement.Center
-        ) {
-            val dp = 32.dp
-
-            // 歌词按钮
-            Box(
-                modifier = Modifier
-                    .height(36.dp)
-                    .weight(1f)
-                    .clickable(
-                        onClick = onLyricsClick,
-                        indication = null,
-                        interactionSource = remember { MutableInteractionSource() }
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                AnimatedContent(
-                    targetState = nowPage == NowPlayingPage.Lyric,
-                    transitionSpec = { fadeIn() togetherWith fadeOut() }
-                ) { isLyric ->
-                    Icon(
-                        painter = painterResource(
-                            id = if (isLyric) android.R.drawable.ic_menu_edit
-                            else android.R.drawable.ic_menu_view
-                        ),
-                        contentDescription = "歌词",
-                        modifier = Modifier.size(dp)
-                    )
+                else -> {
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "暂无歌词",
+                            color = Color.White.copy(alpha = 0.5f),
+                            fontSize = 16.sp
+                        )
+                    }
                 }
             }
 
-            Spacer(modifier = Modifier.weight(0.2f))
-
-            // 播放列表按钮
-            Box(
-                modifier = Modifier
-                    .height(36.dp)
-                    .weight(1f)
-                    .clickable(
-                        onClick = onPlaylistClick,
-                        indication = null,
-                        interactionSource = remember { MutableInteractionSource() }
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    painter = painterResource(id = android.R.drawable.ic_menu_agenda),
-                    contentDescription = "播放列表",
-                    modifier = Modifier.size(dp)
-                )
-            }
+            // 底部控制区
+            PlayerControls(
+                currentPositionMs = currentPosition,
+                durationMs = playbackState.durationMs,
+                isPlaying = isPlaying,
+                dominantColor = dominantColor,
+                onPlayPause = onPlayPause,
+                onNext = onNext,
+                onPrevious = onPrevious,
+                onSeekTo = onSeekTo
+            )
         }
     }
-}
-
-private fun formatTime(seconds: Long): String {
-    val minutes = seconds / 60
-    val secs = seconds % 60
-    return "$minutes:${if (secs < 10) "0$secs" else "$secs"}"
 }

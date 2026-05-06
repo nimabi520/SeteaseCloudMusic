@@ -1,8 +1,13 @@
 package com.example.seteasecloudmusic.feature.main
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.EaseInCubic
+import androidx.compose.animation.core.EaseOutCubic
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateDpAsState
@@ -838,7 +843,18 @@ fun AppNavigation(
             } ?: playerViewModel.clearLyrics()
         }
 
-        if (showNowPlaying) {
+        // NowPlayingScreen 抽屉式弹出/退出动画
+        AnimatedVisibility(
+            visible = showNowPlaying,
+            enter = slideInVertically(
+                initialOffsetY = { it },
+                animationSpec = tween(300, easing = EaseOutCubic)
+            ) + fadeIn(animationSpec = tween(300)),
+            exit = slideOutVertically(
+                targetOffsetY = { it },
+                animationSpec = tween(300, easing = EaseInCubic)
+            ) + fadeOut(animationSpec = tween(300))
+        ) {
             NowPlayingScreen(
                 playbackState = playbackState,
                 lyricsState = lyricsState,
