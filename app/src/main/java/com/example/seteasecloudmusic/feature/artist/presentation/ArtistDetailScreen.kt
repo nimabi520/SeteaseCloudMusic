@@ -9,15 +9,19 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -46,8 +50,12 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import coil.compose.AsyncImage
 import com.example.seteasecloudmusic.core.model.Track
+import com.example.seteasecloudmusic.core.ui.components.AppleMusicCollapsedTopBar
+import com.example.seteasecloudmusic.core.ui.components.rememberAppleMusicCollapseFraction
 import com.example.seteasecloudmusic.feature.artist.domain.model.ArtistAlbum
 import com.example.seteasecloudmusic.feature.artist.domain.model.ArtistSummary
+import com.kyant.backdrop.backdrops.layerBackdrop
+import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 
 private val ArtistPageBg = Color(0xFFF8F8F9)
 private val ArtistPrimaryText = Color(0xFF111111)
@@ -99,6 +107,18 @@ fun ArtistDetailScreen(
     val previewAlbums = uiState.albums.take(ArtistDetailViewModel.PREVIEW_LIMIT)
     val previewSimilar = uiState.similarArtists.take(ArtistDetailViewModel.PREVIEW_LIMIT)
 
+    val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val lazyListState = rememberLazyListState()
+    val collapseFraction by rememberAppleMusicCollapseFraction(
+        lazyListState = lazyListState,
+        collapseThresholdDp = 200.dp
+    )
+
+    val artistBackdrop = rememberLayerBackdrop {
+        drawRect(ArtistPageBg)
+        drawContent()
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -112,34 +132,39 @@ fun ArtistDetailScreen(
             )
         }
 
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(bottom = 120.dp)
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .layerBackdrop(artistBackdrop)
         ) {
-            item {
-                ArtistHeroSection(
-                    artistName = uiState.artistName,
-                    artistCoverUrl = uiState.artistCoverUrl,
-                    onClose = onClose,
-                    onPlayFirstSong = onPlayFirstSong
-                )
-            }
-
-            if (!uiState.errorMessage.isNullOrBlank()) {
+            LazyColumn(
+                state = lazyListState,
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(bottom = 120.dp)
+            ) {
                 item {
-                    Text(
-                        text = uiState.errorMessage,
-                        color = Color(0xFFB52438),
-                        fontSize = 12.sp,
-                        modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
+                    ArtistHeroSection(
+                        artistName = uiState.artistName,
+                        artistCoverUrl = uiState.artistCoverUrl,
+                        onPlayFirstSong = onPlayFirstSong
                     )
                 }
-            }
 
-            item {
-                SectionHeader(
-                    title = "歌曲",
-                    isLoadingMore = uiState.isSongsLoadingMore,
+                if (!uiState.errorMessage.isNullOrBlank()) {
+                    item {
+                        Text(
+                            text = uiState.errorMessage,
+                            color = Color(0xFFB52438),
+                            fontSize = 12.sp,
+                            modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
+                        )
+                    }
+                }
+
+                item {
+                    SectionHeader(
+                        title = "歌曲",
+                        isLoadingMore = uiState.isSongsLoadingMore,
                     onMoreClick = onMoreSongsClick
                 )
             }
@@ -208,6 +233,19 @@ fun ArtistDetailScreen(
                 }
             }
         }
+
+        }
+
+        // 统一的 Apple Music 风格渐变模糊返回顶栏
+        AppleMusicCollapsedTopBar(
+            title = uiState.artistName,
+            collapseFraction = collapseFraction,
+            statusBarHeight = statusBarHeight,
+            backdrop = artistBackdrop,
+            showBackButton = true,
+            onBackClick = onClose,
+            modifier = Modifier.align(Alignment.TopCenter)
+        )
     }
 }
 
@@ -215,11 +253,8 @@ fun ArtistDetailScreen(
 private fun ArtistHeroSection(
     artistName: String,
     artistCoverUrl: String?,
-    onClose: () -> Unit,
     onPlayFirstSong: () -> Unit
 ) {
-    val topInset = 48.dp
-
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -246,46 +281,6 @@ private fun ArtistHeroSection(
                     )
                 )
         )
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = topInset + 8.dp, start = 20.dp, end = 20.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Surface(
-                shape = CircleShape,
-                color = Color.White.copy(alpha = 0.78f),
-                modifier = Modifier
-                    .size(48.dp)
-                    .clickable { onClose() }
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Back",
-                        tint = ArtistPrimaryText,
-                        modifier = Modifier.size(26.dp)
-                    )
-                }
-            }
-
-            Surface(
-                shape = CircleShape,
-                color = Color.White.copy(alpha = 0.78f),
-                modifier = Modifier.size(48.dp)
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        imageVector = Icons.Filled.MoreHoriz,
-                        contentDescription = "More",
-                        tint = ArtistPrimaryText,
-                        modifier = Modifier.size(26.dp)
-                    )
-                }
-            }
-        }
 
         Column(
             modifier = Modifier

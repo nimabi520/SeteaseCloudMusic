@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -36,6 +37,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -48,6 +50,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.seteasecloudmusic.core.model.Track
+import com.example.seteasecloudmusic.core.ui.components.AppleMusicCollapsedTopBar
+import com.example.seteasecloudmusic.core.ui.components.rememberAppleMusicCollapseFraction
 import com.example.seteasecloudmusic.feature.mine.domain.model.PlaylistDetail
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.drawBackdrop
@@ -75,6 +79,11 @@ fun PlaylistDetailScreen(
     BackHandler(onBack = onClose)
 
     val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val lazyListState = rememberLazyListState()
+    val collapseFraction by rememberAppleMusicCollapseFraction(
+        lazyListState = lazyListState,
+        collapseThresholdDp = 140.dp
+    )
 
     Surface(
         modifier = modifier.fillMaxSize(),
@@ -94,9 +103,10 @@ fun PlaylistDetailScreen(
                 )
         ) {
             LazyColumn(
+                state = lazyListState,
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(
-                    top = statusBarHeight + 62.dp,
+                    top = statusBarHeight + 14.dp,
                     bottom = 160.dp,
                     start = 20.dp,
                     end = 20.dp
@@ -173,85 +183,15 @@ fun PlaylistDetailScreen(
                 }
             }
 
-            // 顶部固定状态栏与液态玻璃返回栏
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .align(Alignment.TopCenter)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(statusBarHeight)
-                )
-
-                PlaylistDetailTopBar(
-                    backdrop = backdrop,
-                    title = detail.name,
-                    onClose = onClose
-                )
-            }
-        }
-    }
-}
-
-/**
- * 顶部悬浮返回导航栏
- */
-@Composable
-private fun PlaylistDetailTopBar(
-    backdrop: Backdrop,
-    title: String,
-    onClose: () -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(64.dp)
-            .drawBackdrop(
+            // 顶部 Apple Music 风格渐变模糊导航栏（取消硬边遮罩与状态栏空隙，使用 Backdrop 渐变模糊）
+            AppleMusicCollapsedTopBar(
+                title = detail.name,
+                collapseFraction = collapseFraction,
+                statusBarHeight = statusBarHeight,
                 backdrop = backdrop,
-                shape = { RoundedRectangle(0.dp) },
-                effects = {
-                    vibrancy()
-                    blur(2f.dp.toPx())
-                    lens(16f.dp.toPx(), 32f.dp.toPx())
-                },
-                onDrawSurface = { drawRect(Color.White.copy(alpha = 0.46f)) }
-            )
-            .padding(horizontal = 16.dp, vertical = 6.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(38.dp)
-                    .clip(CircleShape)
-                    .background(Color.White.copy(alpha = 0.30f))
-                    .border(1.dp, Color.White.copy(alpha = 0.64f), CircleShape)
-                    .clickable(onClick = onClose),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Back",
-                    tint = PlaylistTextPrimary,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-
-            Spacer(modifier = Modifier.width(16.dp))
-
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleMedium.copy(
-                    fontSize = 17.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = PlaylistTextPrimary
-                ),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                showBackButton = true,
+                onBackClick = onClose,
+                modifier = Modifier.align(Alignment.TopCenter)
             )
         }
     }

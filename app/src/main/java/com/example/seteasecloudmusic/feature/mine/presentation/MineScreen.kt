@@ -6,6 +6,7 @@ import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
@@ -15,9 +16,13 @@ import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -62,8 +67,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -72,14 +80,19 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.util.lerp
 import androidx.compose.ui.zIndex
 import androidx.core.content.ContextCompat
 import coil.compose.AsyncImage
@@ -97,6 +110,9 @@ import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.effects.vibrancy
 import com.kyant.shapes.RoundedRectangle
+import kotlin.math.absoluteValue
+import kotlin.math.roundToInt
+import kotlinx.coroutines.launch
 
 private val MineTextPrimary = Color(0xFF111111)
 private val MineTextSecondary = Color(0xFF767680)
@@ -184,7 +200,7 @@ fun MineScreen(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(top = statusBarHeight + 8.dp, bottom = bottomContentPadding)
+                    .padding(top = statusBarHeight + 52.dp, bottom = bottomContentPadding)
             ) {
                 AppleMusicLargeTitle(
                     title = "我的",
@@ -208,7 +224,7 @@ fun MineScreen(
                 state = lazyListState,
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(
-                    top = statusBarHeight + 8.dp,
+                    top = statusBarHeight + 52.dp,
                     bottom = bottomContentPadding,
                     start = 20.dp,
                     end = 20.dp
@@ -246,15 +262,23 @@ fun MineScreen(
                     )
                 }
 
-                item(key = "playlist_tabs") {
-                    MinePlaylistTabs(
-                        backdrop = mineBackdrop,
-                        selectedTab = uiState.selectedTab,
-                        createdCount = uiState.createdPlaylists.size,
-                        favoritedCount = uiState.favoritedPlaylists.size,
-                        localCount = uiState.localSongs.size,
-                        onTabSelected = onTabSelected
-                    )
+                // 原生吸顶：零延迟同一帧渲染，彻底解决上下滑动时的抖动问题
+                stickyHeader(key = "playlist_tabs") {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(MinePageBase)
+                            .padding(vertical = 2.dp)
+                    ) {
+                        MinePlaylistTabs(
+                            backdrop = mineBackdrop,
+                            selectedTab = uiState.selectedTab,
+                            createdCount = uiState.createdPlaylists.size,
+                            favoritedCount = uiState.favoritedPlaylists.size,
+                            localCount = uiState.localSongs.size,
+                            onTabSelected = onTabSelected
+                        )
+                    }
                 }
 
                 when (uiState.selectedTab) {
@@ -323,9 +347,9 @@ fun MineScreen(
                 collapseFraction = collapseFraction,
                 statusBarHeight = statusBarHeight,
                 backdrop = mineBackdrop,
-                surfaceColor = Color.White,
-                surfaceAlpha = 0.52f,
-                modifier = Modifier.align(Alignment.TopCenter)
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .zIndex(4f)
             )
         }
 
@@ -824,84 +848,175 @@ private fun MinePlaylistTabs(
     createdCount: Int,
     favoritedCount: Int,
     localCount: Int,
-    onTabSelected: (MinePlaylistTab) -> Unit
+    onTabSelected: (MinePlaylistTab) -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val tabs = listOf(
         MinePlaylistTab.CREATED to "创建 $createdCount",
         MinePlaylistTab.FAVORITED to "收藏 $favoritedCount",
         MinePlaylistTab.LOCAL to "本地 $localCount"
     )
-    val selectedIndex = tabs.indexOfFirst { it.first == selectedTab }.coerceAtLeast(0)
 
-    MineGlassSurface(
-        backdrop = backdrop,
-        modifier = Modifier.fillMaxWidth().height(52.dp),
-        cornerRadius = 26.dp,
-        surfaceAlpha = 0.38f
+    val currentOnTabSelected by rememberUpdatedState(onTabSelected)
+    val currentSelectedTab by rememberUpdatedState(selectedTab)
+    val selectedIndex = tabs.indexOfFirst { it.first == currentSelectedTab }.coerceAtLeast(0)
+
+    val navBarHeight = 50.dp
+    val cornerRadius = navBarHeight / 2
+    val thumbPadding = 4.dp
+    val innerCornerRadius = cornerRadius - thumbPadding
+
+    val animationScope = rememberCoroutineScope()
+    val pressAnimation = remember { Animatable(0f) }
+    val animationSpec = remember { spring<Float>(0.8f, 500f, 0.001f) }
+
+    var dragOffsetX by remember { mutableStateOf<Float?>(null) }
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(navBarHeight)
+            .graphicsLayer {
+                val progress = pressAnimation.value
+                val maxScale = (size.width + 8f.dp.toPx()) / size.width
+                val scale = lerp(1f, maxScale, progress)
+                scaleX = scale
+                scaleY = scale
+            }
+            .drawBackdrop(
+                backdrop = backdrop,
+                shape = { RoundedRectangle(cornerRadius) },
+                effects = {
+                    vibrancy()
+                    blur(2f.dp.toPx())
+                    lens(16f.dp.toPx(), 32f.dp.toPx())
+                },
+                onDrawSurface = { drawRect(Color.White.copy(alpha = 0.5f)) }
+            )
+            .pointerInput(Unit) {
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    var currentX = down.position.x
+                    dragOffsetX = currentX
+
+                    val updateSelection = { x: Float ->
+                        val slotWidthPx = size.width.toFloat() / tabs.size.toFloat()
+                        if (slotWidthPx > 0f) {
+                            val newIndex = (x / slotWidthPx).toInt().coerceIn(0, tabs.size - 1)
+                            currentOnTabSelected(tabs[newIndex].first)
+                        }
+                    }
+                    updateSelection(currentX)
+
+                    animationScope.launch { pressAnimation.animateTo(1f, animationSpec) }
+
+                    var inGesture = true
+                    try {
+                        while (inGesture) {
+                            val event = awaitPointerEvent()
+                            val dragEvent = event.changes.firstOrNull()
+                            if (dragEvent != null && dragEvent.pressed) {
+                                currentX = dragEvent.position.x
+                                dragOffsetX = currentX
+                                updateSelection(currentX)
+                                dragEvent.consume()
+                            } else {
+                                inGesture = false
+                            }
+                        }
+                    } finally {
+                        animationScope.launch { pressAnimation.animateTo(0f, animationSpec) }
+                        dragOffsetX = null
+                    }
+                }
+            }
     ) {
-        BoxWithConstraintsCompat(
-            modifier = Modifier.fillMaxSize().padding(4.dp),
-            tabs = tabs,
-            selectedIndex = selectedIndex,
-            backdrop = backdrop,
-            onTabSelected = onTabSelected
-        )
-    }
-}
-
-@Composable
-private fun BoxWithConstraintsCompat(
-    modifier: Modifier,
-    tabs: List<Pair<MinePlaylistTab, String>>,
-    selectedIndex: Int,
-    backdrop: Backdrop,
-    onTabSelected: (MinePlaylistTab) -> Unit
-) {
-    androidx.compose.foundation.layout.BoxWithConstraints(modifier = modifier) {
-        val tabWidth = maxWidth / tabs.size.toFloat()
-        val thumbOffset by animateDpAsState(
-            targetValue = tabWidth * selectedIndex,
-            animationSpec = spring(stiffness = 520f, dampingRatio = 0.82f),
-            label = "mineTabThumbOffset"
-        )
-
-        Box(
+        BoxWithConstraints(
             modifier = Modifier
-                .offset { IntOffset(thumbOffset.roundToPx(), 0) }
-                .width(tabWidth)
                 .fillMaxSize()
-                .drawBackdrop(
-                    backdrop = backdrop,
-                    shape = { RoundedRectangle(21.dp) },
-                    effects = {
-                        vibrancy()
-                        blur(1.5f.dp.toPx())
-                        lens(12f.dp.toPx(), 24f.dp.toPx())
-                    },
-                    onDrawSurface = { drawRect(Color.White.copy(alpha = 0.46f)) }
-                )
-                .border(1.dp, Color.White.copy(alpha = 0.74f), RoundedCornerShape(21.dp))
-        )
+                .padding(horizontal = thumbPadding),
+            contentAlignment = Alignment.CenterStart
+        ) {
+            val slotWidth = maxWidth / tabs.size.toFloat()
+            val targetThumbWidth = (slotWidth - thumbPadding * 2).coerceAtLeast(0.dp)
+            val baseOffsetX = slotWidth * selectedIndex + thumbPadding
 
-        Row(modifier = Modifier.fillMaxSize()) {
-            tabs.forEachIndexed { index, (tab, title) ->
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxSize()
-                        .clickable { onTabSelected(tab) },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = title,
-                        style = MaterialTheme.typography.bodySmall.copy(
-                            fontSize = 12.sp,
-                            fontWeight = if (index == selectedIndex) FontWeight.Bold else FontWeight.Medium,
-                            color = if (index == selectedIndex) MineAccentRed else MineTextSecondary
-                        ),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+            val density = LocalDensity.current
+            val targetThumbOffsetX = if (dragOffsetX != null) {
+                val fingerXDp = with(density) { dragOffsetX!!.toDp() }
+                val halfThumb = targetThumbWidth / 2
+                (fingerXDp - halfThumb).coerceIn(thumbPadding, maxWidth - targetThumbWidth - thumbPadding)
+            } else {
+                baseOffsetX
+            }
+
+            val tracking = dragOffsetX != null
+            val animatedThumbWidth by animateDpAsState(
+                targetValue = targetThumbWidth,
+                animationSpec = if (tracking) spring(stiffness = 800f, dampingRatio = 0.8f) else spring(stiffness = 300f, dampingRatio = 0.6f),
+                label = "mineThumbWidth"
+            )
+            val animatedThumbOffsetX by animateDpAsState(
+                targetValue = targetThumbOffsetX,
+                animationSpec = if (tracking) spring(stiffness = 800f, dampingRatio = 0.8f) else spring(stiffness = 300f, dampingRatio = 0.6f),
+                label = "mineThumbOffset"
+            )
+
+            // 弹性拉伸（Gooey Stretch 拉丝拉长效果）
+            val offsetDiff = targetThumbOffsetX - animatedThumbOffsetX
+            val stretchFactor = 0.35f
+            val renderedOffsetX = if (offsetDiff.value < 0f) {
+                animatedThumbOffsetX + offsetDiff * stretchFactor
+            } else {
+                animatedThumbOffsetX
+            }
+            val renderedWidth = animatedThumbWidth + offsetDiff.value.absoluteValue.dp * stretchFactor
+            val thumbHeight = navBarHeight - thumbPadding * 2
+
+            // 底栏同款折射参数液体玻璃滑块
+            Box(
+                Modifier
+                    .offset(x = renderedOffsetX)
+                    .drawBackdrop(
+                        backdrop = backdrop,
+                        shape = { RoundedRectangle(innerCornerRadius) },
+                        effects = {
+                            lens(
+                                refractionHeight = 6f.dp.toPx(),
+                                refractionAmount = 12f.dp.toPx(),
+                                chromaticAberration = true
+                            )
+                        }
                     )
+                    .size(renderedWidth, thumbHeight)
+            )
+
+            // 文字层（各项具备独立点击保障与高亮指示）
+            Row(modifier = Modifier.fillMaxSize()) {
+                tabs.forEachIndexed { index, (tab, title) ->
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxSize()
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null
+                            ) {
+                                currentOnTabSelected(tab)
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = title,
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                fontSize = 13.sp,
+                                fontWeight = if (index == selectedIndex) FontWeight.Bold else FontWeight.Medium,
+                                color = if (index == selectedIndex) MineAccentRed else MineTextSecondary
+                            ),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                 }
             }
         }

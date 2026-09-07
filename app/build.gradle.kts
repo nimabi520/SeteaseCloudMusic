@@ -9,7 +9,7 @@ plugins {
 android {
     namespace = "com.example.seteasecloudmusic"
     compileSdk {
-        version = release(36) {
+        version = release(37) {
             minorApiLevel = 1
         }
     }
@@ -78,7 +78,7 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     
     // Liquid glass 实现相关库
-    implementation("io.github.kyant0:backdrop:1.0.6")
+    implementation("io.github.kyant0:backdrop:2.0.1")
     implementation("io.github.kyant0:shapes:1.2.0")
 
     // Compose BOM
@@ -120,6 +120,7 @@ dependencies {
     //hilt依赖注入框架
     implementation(libs.hilt.android)
     ksp(libs.hilt.android.compiler)
+    annotationProcessor("org.jetbrains.kotlin:kotlin-metadata-jvm:2.4.10")
 
     // Hilt 与 Compose Navigation 集成（提供 hiltViewModel()）
     implementation(libs.androidx.hilt.navigation.compose)

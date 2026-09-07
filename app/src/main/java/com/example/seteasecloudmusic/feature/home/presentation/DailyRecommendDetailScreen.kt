@@ -2,6 +2,7 @@ package com.example.seteasecloudmusic.feature.home.presentation
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -10,16 +11,21 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
@@ -28,11 +34,13 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -41,6 +49,8 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import coil.compose.AsyncImage
 import com.example.seteasecloudmusic.core.model.Track
+import com.example.seteasecloudmusic.core.ui.components.AppleMusicCollapsedTopBar
+import com.example.seteasecloudmusic.core.ui.components.rememberAppleMusicCollapseFraction
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
@@ -77,6 +87,13 @@ fun DailyRecommendDetailScreen(
 ) {
     BackHandler(onBack = onClose)
 
+    val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val lazyListState = rememberLazyListState()
+    val collapseFraction by rememberAppleMusicCollapseFraction(
+        lazyListState = lazyListState,
+        collapseThresholdDp = 220.dp
+    )
+
     val heroBackdrop = rememberLayerBackdrop {
         drawRect(Color.Transparent)
         drawContent()
@@ -88,6 +105,7 @@ fun DailyRecommendDetailScreen(
             .background(DetailPageBg)
     ) {
         LazyColumn(
+            state = lazyListState,
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(bottom = 120.dp)
         ) {
@@ -119,14 +137,18 @@ fun DailyRecommendDetailScreen(
             }
         }
 
+        // 未折叠时的悬浮玻璃关闭按钮
         Box(
             modifier = Modifier
                 .align(Alignment.TopEnd)
-                .padding(top = 48.dp, end = 20.dp)
-                .size(48.dp)
+                .padding(top = statusBarHeight + 8.dp, end = 20.dp)
+                .size(40.dp)
+                .graphicsLayer {
+                    alpha = (1f - collapseFraction).coerceIn(0f, 1f)
+                }
                 .drawBackdrop(
                     backdrop = heroBackdrop,
-                    shape = { RoundedRectangle(24.dp) },
+                    shape = { RoundedRectangle(20.dp) },
                     effects = {
                         vibrancy()
                         blur(2f.dp.toPx())
@@ -145,9 +167,36 @@ fun DailyRecommendDetailScreen(
                 imageVector = Icons.Filled.Close,
                 contentDescription = "关闭",
                 tint = Color.Black,
-                modifier = Modifier.size(26.dp)
+                modifier = Modifier.size(22.dp)
             )
         }
+
+        // 折叠时的统一 Apple Music 渐变模糊导航条
+        AppleMusicCollapsedTopBar(
+            title = "每日推荐",
+            collapseFraction = collapseFraction,
+            statusBarHeight = statusBarHeight,
+            backdrop = heroBackdrop,
+            modifier = Modifier.align(Alignment.TopCenter),
+            trailingContent = {
+                Box(
+                    modifier = Modifier
+                        .size(34.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.42f))
+                        .border(0.5.dp, Color.White.copy(alpha = 0.65f), CircleShape)
+                        .clickable(onClick = onClose),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Close,
+                        contentDescription = "关闭",
+                        tint = Color(0xFF111111),
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+        )
     }
 }
 

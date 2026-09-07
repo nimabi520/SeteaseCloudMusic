@@ -62,6 +62,8 @@ import com.example.seteasecloudmusic.core.ui.components.AppleMusicCollapsedTopBa
 import com.example.seteasecloudmusic.core.ui.components.AppleMusicLargeTitle
 import com.example.seteasecloudmusic.core.ui.components.UserAvatarButton
 import com.example.seteasecloudmusic.core.ui.components.rememberAppleMusicCollapseFraction
+import com.kyant.backdrop.backdrops.layerBackdrop
+import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 
 private val HomeBackground = Color.White
 private val HomePrimary = Color(0xFF111111)
@@ -117,106 +119,31 @@ private fun HomeScreenContent(
     )
     var posterWallBounds by remember { mutableStateOf(Rect.Zero) }
 
+    val homeBackdrop = rememberLayerBackdrop {
+        drawRect(HomeBackground)
+        drawContent()
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(HomeBackground)
     ) {
-        when {
-            uiState.isLoading && uiState.tracks.isEmpty() -> {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(top = statusBarHeight + 8.dp)
-                ) {
-                    AppleMusicLargeTitle(
-                        title = "首页",
-                        collapseFraction = 0f,
-                        trailingContent = {
-                            UserAvatarButton(
-                                avatarUrl = avatarUrl,
-                                displayName = displayName,
-                                onClick = { onAvatarClick?.invoke() }
-                            )
-                        }
-                    )
-                    Box(
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .layerBackdrop(homeBackdrop)
+        ) {
+            when {
+                uiState.isLoading && uiState.tracks.isEmpty() -> {
+                    Column(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f),
-                        contentAlignment = Alignment.Center
+                            .fillMaxSize()
+                            .padding(top = statusBarHeight + 8.dp)
                     ) {
-                        CircularProgressIndicator(color = HomeAccent, strokeWidth = 2.dp)
-                    }
-                }
-            }
-
-            uiState.errorMessage != null && uiState.tracks.isEmpty() -> {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(top = statusBarHeight + 8.dp)
-                ) {
-                    AppleMusicLargeTitle(
-                        title = "首页",
-                        collapseFraction = 0f,
-                        trailingContent = {
-                            UserAvatarButton(
-                                avatarUrl = avatarUrl,
-                                displayName = displayName,
-                                onClick = { onAvatarClick?.invoke() }
-                            )
-                        }
-                    )
-                    HomeErrorState(
-                        message = uiState.errorMessage,
-                        onRetryClick = onRetryClick,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f)
-                    )
-                }
-            }
-
-            uiState.tracks.isEmpty() -> {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(top = statusBarHeight + 8.dp)
-                ) {
-                    AppleMusicLargeTitle(
-                        title = "首页",
-                        collapseFraction = 0f,
-                        trailingContent = {
-                            UserAvatarButton(
-                                avatarUrl = avatarUrl,
-                                displayName = displayName,
-                                onClick = { onAvatarClick?.invoke() }
-                            )
-                        }
-                    )
-                    HomeEmptyState(
-                        onRefreshClick = onRefreshClick,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f)
-                    )
-                }
-            }
-
-            else -> {
-                LazyColumn(
-                    state = lazyListState,
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(
-                        top = statusBarHeight + 8.dp,
-                        bottom = bottomContentPadding
-                    )
-                ) {
-                    item(key = "large_page_title") {
                         AppleMusicLargeTitle(
                             title = "首页",
-                            collapseFraction = collapseFraction,
+                            collapseFraction = 0f,
                             trailingContent = {
                                 UserAvatarButton(
                                     avatarUrl = avatarUrl,
@@ -225,41 +152,126 @@ private fun HomeScreenContent(
                                 )
                             }
                         )
-                    }
-
-                    if (!uiState.errorMessage.isNullOrBlank()) {
-                        item {
-                            Text(
-                                text = uiState.errorMessage,
-                                color = Color(0xFFB52438),
-                                fontSize = 12.sp,
-                                modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
-                            )
-                        }
-                    }
-
-                    item(key = "daily_recommend_wall") {
-                        DailyRecommendPosterWall(
-                            tracks = uiState.tracks,
-                            onClick = { onPosterWallClick(uiState.tracks, posterWallBounds) },
-                            onBoundsChanged = { posterWallBounds = it },
+                        Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 20.dp, vertical = 10.dp)
+                                .weight(1f),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator(color = HomeAccent, strokeWidth = 2.dp)
+                        }
+                    }
+                }
+
+                uiState.errorMessage != null && uiState.tracks.isEmpty() -> {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(top = statusBarHeight + 8.dp)
+                    ) {
+                        AppleMusicLargeTitle(
+                            title = "首页",
+                            collapseFraction = 0f,
+                            trailingContent = {
+                                UserAvatarButton(
+                                    avatarUrl = avatarUrl,
+                                    displayName = displayName,
+                                    onClick = { onAvatarClick?.invoke() }
+                                )
+                            }
                         )
+                        HomeErrorState(
+                            message = uiState.errorMessage,
+                            onRetryClick = onRetryClick,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f)
+                        )
+                    }
+                }
+
+                uiState.tracks.isEmpty() -> {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(top = statusBarHeight + 8.dp)
+                    ) {
+                        AppleMusicLargeTitle(
+                            title = "首页",
+                            collapseFraction = 0f,
+                            trailingContent = {
+                                UserAvatarButton(
+                                    avatarUrl = avatarUrl,
+                                    displayName = displayName,
+                                    onClick = { onAvatarClick?.invoke() }
+                                )
+                            }
+                        )
+                        HomeEmptyState(
+                            onRefreshClick = onRefreshClick,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f)
+                        )
+                    }
+                }
+
+                else -> {
+                    LazyColumn(
+                        state = lazyListState,
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(
+                            top = statusBarHeight + 8.dp,
+                            bottom = bottomContentPadding
+                        )
+                    ) {
+                        item(key = "large_page_title") {
+                            AppleMusicLargeTitle(
+                                title = "首页",
+                                collapseFraction = collapseFraction,
+                                trailingContent = {
+                                    UserAvatarButton(
+                                        avatarUrl = avatarUrl,
+                                        displayName = displayName,
+                                        onClick = { onAvatarClick?.invoke() }
+                                    )
+                                }
+                            )
+                        }
+
+                        if (!uiState.errorMessage.isNullOrBlank()) {
+                            item {
+                                Text(
+                                    text = uiState.errorMessage,
+                                    color = Color(0xFFB52438),
+                                    fontSize = 12.sp,
+                                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
+                                )
+                            }
+                        }
+
+                        item(key = "daily_recommend_wall") {
+                            DailyRecommendPosterWall(
+                                tracks = uiState.tracks,
+                                onClick = { onPosterWallClick(uiState.tracks, posterWallBounds) },
+                                onBoundsChanged = { posterWallBounds = it },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 20.dp, vertical = 10.dp)
+                            )
+                        }
                     }
                 }
             }
         }
 
-        // 覆盖在顶部的 Apple Music 风格折叠顶栏（含毛玻璃材质、底部分割线与居中小标题）
+        // 覆盖在顶部的 Apple Music 风格渐变模糊导航栏（基于 Backdrop 实时采样，无纯色硬遮罩）
         AppleMusicCollapsedTopBar(
             title = "首页",
             collapseFraction = collapseFraction,
             statusBarHeight = statusBarHeight,
+            backdrop = homeBackdrop,
             modifier = Modifier.align(Alignment.TopCenter),
-            surfaceColor = Color.White,
-            surfaceAlpha = 0.92f,
             trailingContent = {
                 UserAvatarButton(
                     avatarUrl = avatarUrl,

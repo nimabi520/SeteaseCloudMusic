@@ -1,15 +1,22 @@
 package com.example.seteasecloudmusic.core.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
@@ -17,7 +24,13 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
@@ -27,11 +40,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kyant.backdrop.Backdrop
-import com.kyant.backdrop.drawBackdrop
+import com.kyant.backdrop.drawPlainBackdrop
 import com.kyant.backdrop.effects.blur
-import com.kyant.backdrop.effects.lens
-import com.kyant.backdrop.effects.vibrancy
-import com.kyant.shapes.RoundedRectangle
 
 /**
  * 监听 LazyListState 的滑动距离并计算出符合 Apple Music 规范的折叠进度 (0f..1f)。
@@ -60,7 +70,7 @@ fun rememberAppleMusicCollapseFraction(
 }
 
 /**
- * Apple Music 风格大标题（放置在可滚动容器的第一项，随动滚动并优雅微缩淡出）。
+ * Apple Music 风格大标题（靠左对齐，随动自然微缩至小标题尺寸）。
  *
  * @param title 标题文字（如“首页”、“我的”）
  * @param collapseFraction 折叠进度 (0f..1f)
@@ -74,10 +84,10 @@ fun AppleMusicLargeTitle(
     modifier: Modifier = Modifier,
     trailingContent: (@Composable () -> Unit)? = null
 ) {
-    // 在前 20% 保持清晰，20%~100% 随滑动逐渐平滑淡出
-    val titleAlpha = (1f - ((collapseFraction - 0.20f) / 0.80f)).coerceIn(0f, 1f)
-    // 经典 Apple Music 0.88 比例微缩，锚点在左侧居中，确保左对齐文字绝不发生向右漂移
-    val titleScale = 1f - collapseFraction * 0.12f
+    // 平滑连续缩小：从 1.0f 缩小到 0.62f（34sp -> 21sp），始终严格以左侧为锚点缩放
+    val titleScale = 1f - collapseFraction * 0.38f
+    // 当完全缩小到位时淡出，由顶栏左侧同等大小的固定标题平滑接管
+    val titleAlpha = (1f - ((collapseFraction - 0.70f) / 0.30f)).coerceIn(0f, 1f)
 
     Row(
         modifier = modifier
@@ -112,16 +122,19 @@ fun AppleMusicLargeTitle(
 }
 
 /**
- * Apple Music 风格顶部固定导航栏（覆盖状态栏，随滑动展示毛玻璃背景、居中小标题由下至上升起）。
+ * Apple Music 风格纯透明渐变模糊导航栏。
+ *
+ * 纯透明模糊：不叠加任何白色雾罩（不泛白），通过垂直渐变遮罩将模糊强度在底部优雅融化到 0。
+ * 标题布局：保持在左侧（左对齐，不居中跳变），与大标题左对齐自然衔接。
  *
  * @param title 小标题文字
- * @param collapseFraction 折叠进度 (0f..1f)
+ * @param collapseFraction 折叠进度 (0f..1f)，二级页面常驻时可设为 1f
  * @param statusBarHeight 状态栏高度
  * @param modifier 外部修饰符
- * @param backdrop 可选的 Backdrop 纹理
- * @param surfaceColor 顶栏背景色
- * @param surfaceAlpha 顶栏最大不透明度
- * @param trailingContent 顶栏折叠后右侧操作组件（如微型头像）
+ * @param backdrop 背景采样 Backdrop
+ * @param showBackButton 是否展示左侧 Apple 风格圆形玻璃返回按钮
+ * @param onBackClick 返回按钮点击回调
+ * @param trailingContent 顶栏右侧操作组件（如微型头像）
  */
 @Composable
 fun AppleMusicCollapsedTopBar(
@@ -130,93 +143,122 @@ fun AppleMusicCollapsedTopBar(
     statusBarHeight: Dp,
     modifier: Modifier = Modifier,
     backdrop: Backdrop? = null,
-    surfaceColor: Color = Color.White,
-    surfaceAlpha: Float = 0.82f,
+    showBackButton: Boolean = false,
+    onBackClick: (() -> Unit)? = null,
     trailingContent: (@Composable () -> Unit)? = null
 ) {
-    // 导航栏背景在 15%~100% 渐进淡入
-    val bgAlpha = ((collapseFraction - 0.15f) / 0.85f).coerceIn(0f, 1f)
-    // 小标题与右侧动作项在 55%~100% 伴随微位移优雅淡入
-    val titleAlpha = ((collapseFraction - 0.55f) / 0.45f).coerceIn(0f, 1f)
-    val density = LocalDensity.current
-    val translateY = with(density) { ((1f - titleAlpha) * 8.dp.toPx()) }
+    val blurAlpha = if (showBackButton) {
+        (0.20f + collapseFraction * 0.80f).coerceIn(0f, 1f)
+    } else {
+        ((collapseFraction - 0.40f) / 0.60f).coerceIn(0f, 1f)
+    }
 
-    val barHeight = statusBarHeight + 50.dp
+    // 小标题淡入：当大标题缩小接近顶部时，在左侧平滑淡入无缝接替
+    val titleAlpha = if (showBackButton) {
+        collapseFraction.coerceIn(0f, 1f)
+    } else {
+        ((collapseFraction - 0.68f) / 0.32f).coerceIn(0f, 1f)
+    }
+
+    val barHeight = statusBarHeight + 52.dp
 
     Box(
         modifier = modifier
             .fillMaxWidth()
             .height(barHeight)
     ) {
-        // 背景层（支持 Backdrop 毛玻璃或纯色磨砂材质）
-        val bgModifier = if (backdrop != null) {
-            Modifier
-                .fillMaxSize()
-                .drawBackdrop(
-                    backdrop = backdrop,
-                    shape = { RoundedRectangle(0.dp) },
-                    effects = {
-                        vibrancy()
-                        blur(2f.dp.toPx())
-                        lens(16f.dp.toPx(), 32f.dp.toPx())
-                    },
-                    onDrawSurface = {
-                        drawRect(surfaceColor.copy(alpha = surfaceAlpha * bgAlpha))
+        // 纯透明渐变模糊层：无任何白色泛白背景，仅靠 Backdrop 真实高斯模糊，底部柔和衰减至完全透明
+        if (blurAlpha > 0f && backdrop != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        alpha = blurAlpha
+                        compositingStrategy = CompositingStrategy.Offscreen
                     }
+                    .drawWithContent {
+                        drawContent()
+                        drawRect(
+                            brush = Brush.verticalGradient(
+                                0.0f to Color.Black,
+                                0.60f to Color.Black.copy(alpha = 0.90f),
+                                0.85f to Color.Black.copy(alpha = 0.35f),
+                                1.0f to Color.Transparent
+                            ),
+                            blendMode = BlendMode.DstIn
+                        )
+                    }
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .drawPlainBackdrop(
+                            backdrop = backdrop,
+                            shape = { RectangleShape },
+                            effects = {
+                                blur(16f.dp.toPx())
+                            }
+                        )
                 )
-        } else {
-            Modifier
-                .fillMaxSize()
-                .background(surfaceColor.copy(alpha = surfaceAlpha * bgAlpha))
-        }
-
-        Box(
-            modifier = bgModifier.graphicsLayer {
-                alpha = bgAlpha
             }
-        )
-
-        // 底部分割线（极细浅色分割线）
-        HorizontalDivider(
-            modifier = Modifier
-                .fillMaxWidth()
-                .align(Alignment.BottomCenter)
-                .graphicsLayer {
-                    alpha = bgAlpha
-                },
-            thickness = 0.5.dp,
-            color = Color(0x1F000000)
-        )
+        }
 
         // 导航栏内容区域（状态栏高度之下）
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(top = statusBarHeight)
-                .height(50.dp)
+                .height(52.dp)
                 .padding(horizontal = 20.dp),
-            contentAlignment = Alignment.Center
+            contentAlignment = Alignment.CenterStart
         ) {
-            Text(
-                text = title,
-                fontSize = 17.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color(0xFF111111),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.graphicsLayer {
-                    alpha = titleAlpha
-                    translationY = translateY
+            Row(
+                modifier = Modifier.align(Alignment.CenterStart),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // 左侧返回按钮（二级页面）
+                if (showBackButton && onBackClick != null) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(Color.Black.copy(alpha = 0.06f))
+                            .border(0.5.dp, Color.Black.copy(alpha = 0.12f), CircleShape)
+                            .clickable(onClick = onBackClick),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "返回",
+                            tint = Color(0xFF111111),
+                            modifier = Modifier.size(19.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.size(12.dp))
                 }
-            )
 
+                // 标题文本：始终保持靠左对齐，不居中，字号 21sp 与缩小后的大标题无缝吻合
+                Text(
+                    text = title,
+                    fontSize = 21.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF111111),
+                    letterSpacing = (-0.5).sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.graphicsLayer {
+                        alpha = titleAlpha
+                    }
+                )
+            }
+
+            // 右侧操作项（如头像）
             if (trailingContent != null) {
                 Box(
                     modifier = Modifier
                         .align(Alignment.CenterEnd)
                         .graphicsLayer {
                             alpha = titleAlpha
-                            this.translationY = translateY
                         }
                 ) {
                     trailingContent()
