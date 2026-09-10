@@ -122,7 +122,8 @@ private data class SelectedArtist(
 
 private data class DailyRecommendState(
     val tracks: List<com.example.seteasecloudmusic.core.model.Track>,
-    val posterBounds: Rect
+    val posterBounds: Rect,
+    val title: String = "每日推荐"
 )
 
 //底栏上方的玻璃滑块
@@ -377,8 +378,8 @@ fun AppNavigation(
                     avatarUrl = authUiState.authSession?.avatarUrl,
                     displayName = authUiState.authSession?.nickname,
                     onAvatarClick = { showAccountSheet = true },
-                    onPosterWallClick = { tracks, bounds ->
-                        dailyRecommendState = DailyRecommendState(tracks, bounds)
+                    onPosterWallClick = { tracks, bounds, title ->
+                        dailyRecommendState = DailyRecommendState(tracks, bounds, title)
                     }
                 )
                 1 -> AppPageBackground() // 电台
@@ -797,6 +798,7 @@ fun AppNavigation(
                     val homeViewModel: HomeViewModel = hiltViewModel()
                     DailyRecommendDetailRoute(
                         tracks = state.tracks,
+                        title = state.title,
                         onClose = {
                             expandScope.launch {
                                 expandProgress.animateTo(0f, spring(dampingRatio = 0.9f, stiffness = 500f))

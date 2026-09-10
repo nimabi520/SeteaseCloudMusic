@@ -47,7 +47,8 @@ data class PlaybackState(
     val errorMessage: String? = null,
     val queueTracks: List<Track> = emptyList(),
     val currentQueueIndex: Int = -1,
-    val playbackMode: PlaybackMode = PlaybackMode.SEQUENTIAL
+    val playbackMode: PlaybackMode = PlaybackMode.SEQUENTIAL,
+    val queueSource: String? = null
 )
 
 @Singleton
@@ -417,7 +418,11 @@ class MusicPlayerController @Inject constructor(
         }
     }
 
-    fun replaceQueueAndPlay(tracks: List<Track>, startIndex: Int = 0) {
+    fun replaceQueueAndPlay(
+        tracks: List<Track>,
+        startIndex: Int = 0,
+        queueSource: String? = null
+    ) {
         val snapshot = tracks.toList()
         if (snapshot.isEmpty()) {
             _playbackState.update {
@@ -442,7 +447,8 @@ class MusicPlayerController @Inject constructor(
                 queueTracks = snapshot,
                 currentQueueIndex = startIndex,
                 currentPositionMs = 0,
-                errorMessage = null
+                errorMessage = null,
+                queueSource = queueSource
             )
         }
 
@@ -978,6 +984,7 @@ class MusicPlayerController @Inject constructor(
     }
 
     companion object {
+        const val QUEUE_SOURCE_PRIVATE_DJ = "PRIVATE_DJ"
         private const val SERVICE_RECONNECT_DELAY_MS = 500L
     }
 }

@@ -12,7 +12,8 @@ data class Track(
     val durationMs: Long? = null,
 
     val playableUrl: String? = null,
-    val isPlayable: Boolean = true
+    val isPlayable: Boolean = true,
+    val recommendReason: String? = null
 )
 
 data class Album(

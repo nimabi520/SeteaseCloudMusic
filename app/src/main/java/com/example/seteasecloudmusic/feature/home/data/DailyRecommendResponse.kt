@@ -175,3 +175,30 @@ data class DailyRecommendFreeTrialPrivilegeResponse(
     val playReason: String? = null,
     val freeLimitTagType: Int? = null
 )
+
+/**
+ * /recommend/resource 推荐歌单接口响应
+ */
+data class RecommendResourceResponse(
+    val code: Int? = 0,
+    val featureFirst: Boolean? = false,
+    val haveRcmdSongs: Boolean? = false,
+    val recommend: List<RecommendResourcePlaylistItem> = emptyList()
+)
+
+data class RecommendResourcePlaylistItem(
+    val id: Long? = 0L,
+    val name: String? = null,
+    val picUrl: String? = null,
+    val playcount: Long? = 0L,
+    val trackCount: Int? = 0,
+    val copywriter: String? = null,
+    val description: String? = null,
+    val creator: RecommendResourceCreator? = null
+)
+
+data class RecommendResourceCreator(
+    val nickname: String? = null,
+    val userId: Long? = null,
+    val avatarUrl: String? = null
+)

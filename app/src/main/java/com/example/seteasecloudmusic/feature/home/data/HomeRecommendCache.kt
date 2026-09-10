@@ -11,7 +11,7 @@ import javax.inject.Singleton
 /** 首页推荐数据的本地缓存，只保存首页自己的模型。 */
 @Singleton
 class HomeRecommendCache @Inject constructor(
-    @param:ApplicationContext context: Context
+    @ApplicationContext context: Context
 ) {
     private val prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
     private val gson = Gson()
@@ -35,9 +35,48 @@ class HomeRecommendCache @Inject constructor(
         }.getOrNull()
     }
 
+    fun saveRadarPlaylist(data: com.example.seteasecloudmusic.feature.home.domain.repository.RadarPlaylistData) {
+        runCatching {
+            prefs.edit()
+                .putString(KEY_RADAR_PLAYLIST, gson.toJson(data))
+                .apply()
+        }
+    }
+
+    fun getRadarPlaylist(): com.example.seteasecloudmusic.feature.home.domain.repository.RadarPlaylistData? {
+        val json = prefs.getString(KEY_RADAR_PLAYLIST, null) ?: return null
+        return runCatching {
+            gson.fromJson<com.example.seteasecloudmusic.feature.home.domain.repository.RadarPlaylistData>(
+                json,
+                com.example.seteasecloudmusic.feature.home.domain.repository.RadarPlaylistData::class.java
+            )
+        }.getOrNull()
+    }
+
+    fun saveFavoriteRecommend(data: com.example.seteasecloudmusic.feature.home.domain.repository.FavoriteRecommendSectionData) {
+        if (data.tracks.isEmpty()) return
+        runCatching {
+            prefs.edit()
+                .putString(KEY_FAVORITE_RECOMMEND, gson.toJson(data))
+                .apply()
+        }
+    }
+
+    fun getFavoriteRecommend(): com.example.seteasecloudmusic.feature.home.domain.repository.FavoriteRecommendSectionData? {
+        val json = prefs.getString(KEY_FAVORITE_RECOMMEND, null) ?: return null
+        return runCatching {
+            gson.fromJson<com.example.seteasecloudmusic.feature.home.domain.repository.FavoriteRecommendSectionData>(
+                json,
+                com.example.seteasecloudmusic.feature.home.domain.repository.FavoriteRecommendSectionData::class.java
+            )
+        }.getOrNull()
+    }
+
     companion object {
         // 与旧 DataCacheManager 保持相同键，升级后不丢失已有缓存。
         private const val PREF_NAME = "app_data_cache_prefs"
         private const val KEY_DAILY_RECOMMEND = "key_daily_recommend"
+        private const val KEY_RADAR_PLAYLIST = "key_radar_playlist"
+        private const val KEY_FAVORITE_RECOMMEND = "key_favorite_recommend"
     }
 }

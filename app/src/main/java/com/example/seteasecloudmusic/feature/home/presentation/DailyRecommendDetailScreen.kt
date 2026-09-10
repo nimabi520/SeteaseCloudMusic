@@ -69,11 +69,13 @@ private val PosterWallSurface = Color(0xFFF6F6F8)
 @Composable
 fun DailyRecommendDetailRoute(
     tracks: List<Track>,
+    title: String = "每日推荐",
     onClose: () -> Unit,
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     DailyRecommendDetailScreen(
         tracks = tracks,
+        title = title,
         onTrackClick = { track -> viewModel.onTrackClick(track, tracks) },
         onClose = onClose
     )
@@ -82,6 +84,7 @@ fun DailyRecommendDetailRoute(
 @Composable
 fun DailyRecommendDetailScreen(
     tracks: List<Track>,
+    title: String = "每日推荐",
     onTrackClick: (Track) -> Unit,
     onClose: () -> Unit
 ) {
@@ -111,7 +114,7 @@ fun DailyRecommendDetailScreen(
         ) {
             item {
                 Box(modifier = Modifier.layerBackdrop(heroBackdrop)) {
-                    DetailHeroSection(tracks = tracks)
+                    DetailHeroSection(tracks = tracks, title = title)
                 }
             }
 
@@ -173,7 +176,7 @@ fun DailyRecommendDetailScreen(
 
         // 折叠时的统一 Apple Music 渐变模糊导航条
         AppleMusicCollapsedTopBar(
-            title = "每日推荐",
+            title = title,
             collapseFraction = collapseFraction,
             statusBarHeight = statusBarHeight,
             backdrop = heroBackdrop,
@@ -202,7 +205,8 @@ fun DailyRecommendDetailScreen(
 
 @Composable
 private fun DetailHeroSection(
-    tracks: List<Track>
+    tracks: List<Track>,
+    title: String = "每日推荐"
 ) {
     val wallCovers = tracks.mapNotNull { it.coverUrl?.takeIf(String::isNotBlank) }
 
@@ -247,7 +251,7 @@ private fun DetailHeroSection(
         )
 
         Text(
-            text = "每日推荐",
+            text = title,
             color = Color.White,
             fontSize = 42.sp,
             fontWeight = FontWeight.ExtraBold,
