@@ -12,6 +12,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.rememberScrollState
@@ -29,6 +30,7 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -40,6 +42,8 @@ import androidx.compose.material.icons.filled.QrCode2
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Sms
+import androidx.compose.material.icons.outlined.CloudOff
+import androidx.compose.material.icons.outlined.ErrorOutline
 import com.example.seteasecloudmusic.core.settings.PlayerStyle
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -1137,6 +1141,8 @@ private fun QrPanel(
         }
     }
 
+    val isErrorState = imageBitmap == null && !isLoading
+
     Column(modifier = Modifier.fillMaxWidth()) {
         PanelTitle(
             title = "二维码登录",
@@ -1160,33 +1166,94 @@ private fun QrPanel(
                 Box(
                     modifier = Modifier
                         .size(190.dp)
-                        .background(Color(0xFFF3F3F7), RoundedCornerShape(20.dp))
-                        .border(1.dp, Color(0xFFE5E5EA), RoundedCornerShape(20.dp)),
+                        .background(if (isErrorState) Color(0xFFF9F9FB) else Color(0xFFF3F3F7), RoundedCornerShape(20.dp))
+                        .border(
+                            1.dp,
+                            if (isErrorState) Color(0xFFE2E2EA) else Color(0xFFE5E5EA),
+                            RoundedCornerShape(20.dp)
+                        )
+                        .then(if (isErrorState) Modifier.clickable { onRefresh() } else Modifier),
                     contentAlignment = Alignment.Center
                 ) {
-                    if (imageBitmap != null) {
-                        Image(
-                            bitmap = imageBitmap,
-                            contentDescription = "登录二维码",
-                            modifier = Modifier.size(170.dp)
-                        )
-                    } else {
-                        Icon(
-                            imageVector = Icons.Filled.QrCode2,
-                            contentDescription = null,
-                            tint = Color(0xFF1F1F21),
-                            modifier = Modifier.size(86.dp)
-                        )
+                    when {
+                        isLoading && imageBitmap == null -> {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(36.dp),
+                                color = red,
+                                strokeWidth = 3.dp
+                            )
+                        }
+                        imageBitmap != null -> {
+                            Image(
+                                bitmap = imageBitmap,
+                                contentDescription = "登录二维码",
+                                modifier = Modifier.size(170.dp)
+                            )
+                        }
+                        else -> {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center,
+                                modifier = Modifier.padding(12.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.CloudOff,
+                                    contentDescription = "加载失败",
+                                    tint = Color(0xFF9E9EA7),
+                                    modifier = Modifier.size(48.dp)
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = "点击重新加载",
+                                    color = Color(0xFF8E8E93),
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(14.dp))
 
-                Text(
-                    text = qrHint,
-                    color = secondary,
-                    fontSize = 14.sp
-                )
+                if (isErrorState) {
+                    Card(
+                        shape = RoundedCornerShape(14.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF2F0)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.ErrorOutline,
+                                contentDescription = null,
+                                tint = Color(0xFFE53935),
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = qrHint,
+                                color = Color(0xFFD32F2F),
+                                fontSize = 13.sp,
+                                lineHeight = 18.sp
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "提示：请确认手机已联网，或服务器正常运行",
+                        color = Color(0xFF8E8E93),
+                        fontSize = 12.sp
+                    )
+                } else {
+                    Text(
+                        text = qrHint,
+                        color = secondary,
+                        fontSize = 14.sp
+                    )
+                }
 
                 Spacer(modifier = Modifier.height(14.dp))
 
@@ -1199,7 +1266,7 @@ private fun QrPanel(
                     if (isLoading) {
                         CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
                     } else {
-                        Text("刷新二维码")
+                        Text(if (isErrorState) "重新获取二维码" else "刷新二维码")
                     }
                 }
             }

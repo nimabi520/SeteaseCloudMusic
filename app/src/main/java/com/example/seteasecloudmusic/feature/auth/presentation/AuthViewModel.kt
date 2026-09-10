@@ -3,6 +3,7 @@ package com.example.seteasecloudmusic.feature.auth.presentation
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.seteasecloudmusic.core.auth.AuthSession
+import com.example.seteasecloudmusic.core.common.toUserFriendlyMessage
 import com.example.seteasecloudmusic.feature.auth.domain.model.QrLoginStart
 import com.example.seteasecloudmusic.feature.auth.domain.model.QrStatus
 import com.example.seteasecloudmusic.feature.auth.usecase.LogoutUseCase
@@ -211,12 +212,8 @@ class AuthViewModel @Inject constructor(
                     _snackbarMessage.emit("已退出登录")
                 },
                 onFailure = { error ->
-                    val detail = error.message?.takeIf { it.isNotBlank() }
-                    if (detail == null) {
-                        _snackbarMessage.emit("已退出登录")
-                    } else {
-                        _snackbarMessage.emit("已退出登录（服务端请求失败：$detail）")
-                    }
+                    val friendlyMsg = error.toUserFriendlyMessage("同步退出状态")
+                    _snackbarMessage.emit("已在本地退出登录（$friendlyMsg）")
                 }
             )
         }
@@ -248,7 +245,7 @@ class AuthViewModel @Inject constructor(
                     _snackbarMessage.emit("验证码已发送")
                 },
                 onFailure = { error ->
-                    val msg = error.message ?: "发送失败"
+                    val msg = error.toUserFriendlyMessage("发送验证码")
                     _uiState.update { it.copy(errorMessage = msg) }
                     _snackbarMessage.emit(msg)
                 }
@@ -271,7 +268,7 @@ class AuthViewModel @Inject constructor(
                     _dismissSheet.emit(Unit)
                 },
                 onFailure = { error ->
-                    val msg = error.message ?: "登录失败"
+                    val msg = error.toUserFriendlyMessage("登录")
                     _uiState.update { it.copy(errorMessage = msg) }
                     _snackbarMessage.emit(msg)
                 }
@@ -297,7 +294,7 @@ class AuthViewModel @Inject constructor(
         stopQrLoginFlow()
         val requestId = qrRequestId
         qrStartJob = viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true) }
+            _uiState.update { it.copy(isLoading = true, qrHint = "正在生成登录二维码...") }
             val result = startQrLoginUseCase()
 
             if (!isActive || requestId != qrRequestId || _uiState.value.panel != AuthPanel.QR) {
@@ -310,14 +307,14 @@ class AuthViewModel @Inject constructor(
                     if (!isActive || requestId != qrRequestId || _uiState.value.panel != AuthPanel.QR) {
                         return@fold
                     }
-                    _uiState.update { it.copy(qrLoginStart = qrLoginStart) }
+                    _uiState.update { it.copy(qrLoginStart = qrLoginStart, qrHint = "请使用网易云音乐App扫码登录") }
                     startQrPolling(qrLoginStart.key, requestId)
                 },
                 onFailure = { error ->
                     if (!isActive || requestId != qrRequestId || _uiState.value.panel != AuthPanel.QR) {
                         return@fold
                     }
-                    val msg = error.message ?: "获取二维码失败"
+                    val msg = error.toUserFriendlyMessage("获取二维码")
                     _uiState.update { it.copy(qrHint = msg) }
                     _snackbarMessage.emit(msg)
                 }
@@ -364,8 +361,9 @@ class AuthViewModel @Inject constructor(
                         }
                     },
                     onFailure = { error ->
+                        val friendly = error.toUserFriendlyMessage("检测扫码状态")
                         _uiState.update {
-                            it.copy(qrHint = "轮询失败: ${error.message}")
+                            it.copy(qrHint = "$friendly，请点击刷新")
                         }
                     }
                 )

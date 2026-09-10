@@ -2,6 +2,7 @@ package com.example.seteasecloudmusic.feature.home.presentation
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.seteasecloudmusic.core.common.toUserFriendlyMessage
 import com.example.seteasecloudmusic.core.model.Track
 import com.example.seteasecloudmusic.core.player.MusicPlayerController
 import com.example.seteasecloudmusic.feature.home.domain.repository.HomeRecommendRepository
@@ -109,7 +110,7 @@ class HomeViewModel @Inject constructor(
                         // 若本地已有缓存，失败时不遮挡已有缓存内容
                         state.copy(
                             isLoading = false,
-                            errorMessage = if (state.tracks.isEmpty()) (throwable.message ?: "获取每日推荐失败") else null
+                            errorMessage = if (state.tracks.isEmpty()) throwable.toUserFriendlyMessage("获取每日推荐") else null
                         )
                     }
                 }

@@ -2,6 +2,7 @@ package com.example.seteasecloudmusic.feature.artist.presentation
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.seteasecloudmusic.core.common.toUserFriendlyMessage
 import com.example.seteasecloudmusic.core.model.Track
 import com.example.seteasecloudmusic.core.player.MusicPlayerController
 import com.example.seteasecloudmusic.feature.artist.domain.model.ArtistAlbum
@@ -139,12 +140,12 @@ class ArtistDetailViewModel @Inject constructor(
             val similarArtists = similarResult.getOrNull().orEmpty()
 
             val firstError = listOf(
-                detailResult.exceptionOrNull()?.message,
-                descriptionResult.exceptionOrNull()?.message,
-                songsResult.exceptionOrNull()?.message,
-                albumsResult.exceptionOrNull()?.message,
-                similarResult.exceptionOrNull()?.message
-            ).firstOrNull { !it.isNullOrBlank() }
+                detailResult.exceptionOrNull(),
+                descriptionResult.exceptionOrNull(),
+                songsResult.exceptionOrNull(),
+                albumsResult.exceptionOrNull(),
+                similarResult.exceptionOrNull()
+            ).firstOrNull { it != null }?.toUserFriendlyMessage("加载歌手信息")
 
             _uiState.update { prev ->
                 if (requestId != artistRequestId || prev.artistId != artistId) {
@@ -220,7 +221,7 @@ class ArtistDetailViewModel @Inject constructor(
                 _uiState.update {
                     it.copy(
                         isSongsLoadingMore = false,
-                        errorMessage = throwable.message ?: "Failed to load songs"
+                        errorMessage = throwable.toUserFriendlyMessage("加载歌手歌曲")
                     )
                 }
             }
@@ -271,7 +272,7 @@ class ArtistDetailViewModel @Inject constructor(
                 _uiState.update {
                     it.copy(
                         isAlbumsLoadingMore = false,
-                        errorMessage = throwable.message ?: "Failed to load albums"
+                        errorMessage = throwable.toUserFriendlyMessage("加载歌手专辑")
                     )
                 }
             }
@@ -308,7 +309,7 @@ class ArtistDetailViewModel @Inject constructor(
                 _uiState.update {
                     it.copy(
                         isSimilarLoadingMore = false,
-                        errorMessage = throwable.message ?: "Failed to load similar artists"
+                        errorMessage = throwable.toUserFriendlyMessage("加载相似歌手")
                     )
                 }
             }

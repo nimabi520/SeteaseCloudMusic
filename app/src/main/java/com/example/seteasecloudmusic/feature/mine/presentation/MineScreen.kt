@@ -50,6 +50,7 @@ import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.outlined.CloudOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -87,6 +88,7 @@ import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
@@ -284,7 +286,16 @@ fun MineScreen(
                 when (uiState.selectedTab) {
                     MinePlaylistTab.CREATED -> {
                         if (uiState.createdPlaylists.isEmpty() && !uiState.isLoading) {
-                            item(key = "empty_created") { EmptyPlaylistNotice("暂无自建歌单") }
+                            if (!uiState.errorMessage.isNullOrBlank()) {
+                                item(key = "error_created") {
+                                    MineErrorNotice(
+                                        message = uiState.errorMessage,
+                                        onRetry = onRefresh
+                                    )
+                                }
+                            } else {
+                                item(key = "empty_created") { EmptyPlaylistNotice("暂无自建歌单") }
+                            }
                         } else {
                             items(uiState.createdPlaylists, key = { it.id }) { playlist ->
                                 PlaylistRowItem(playlist = playlist, onClick = { onPlaylistClick(playlist) })
@@ -294,7 +305,16 @@ fun MineScreen(
 
                     MinePlaylistTab.FAVORITED -> {
                         if (uiState.favoritedPlaylists.isEmpty() && !uiState.isLoading) {
-                            item(key = "empty_favorited") { EmptyPlaylistNotice("暂无收藏歌单") }
+                            if (!uiState.errorMessage.isNullOrBlank()) {
+                                item(key = "error_favorited") {
+                                    MineErrorNotice(
+                                        message = uiState.errorMessage,
+                                        onRetry = onRefresh
+                                    )
+                                }
+                            } else {
+                                item(key = "empty_favorited") { EmptyPlaylistNotice("暂无收藏歌单") }
+                            }
                         } else {
                             items(uiState.favoritedPlaylists, key = { it.id }) { playlist ->
                                 PlaylistRowItem(playlist = playlist, onClick = { onPlaylistClick(playlist) })
@@ -1163,5 +1183,46 @@ private fun EmptyPlaylistNotice(message: String) {
             text = message,
             style = MaterialTheme.typography.bodyMedium.copy(color = MineTextSecondary)
         )
+    }
+}
+
+@Composable
+private fun MineErrorNotice(
+    message: String,
+    onRetry: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp, vertical = 32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Icon(
+            imageVector = Icons.Outlined.CloudOff,
+            contentDescription = null,
+            tint = Color(0xFF9E9EA7),
+            modifier = Modifier.size(44.dp)
+        )
+        Text(
+            text = "加载歌单受阻",
+            style = MaterialTheme.typography.titleSmall.copy(color = MineTextPrimary, fontWeight = FontWeight.SemiBold)
+        )
+        Text(
+            text = message,
+            style = MaterialTheme.typography.bodySmall.copy(color = MineTextSecondary),
+            textAlign = TextAlign.Center,
+            lineHeight = 18.sp
+        )
+        Text(
+            text = "提示：请检查网络设置后重试",
+            style = MaterialTheme.typography.bodySmall.copy(color = Color(0xFFAAAAAF), fontSize = 11.sp)
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Button(onClick = onRetry) {
+            Icon(imageVector = Icons.Filled.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+            Spacer(modifier = Modifier.width(6.dp))
+            Text("重新加载")
+        }
     }
 }

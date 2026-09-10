@@ -22,7 +22,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.MoreHoriz
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.outlined.CloudOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
@@ -42,6 +44,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -581,12 +584,33 @@ fun ResultErrorSection(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Text(text = "加载失败", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = PrimaryText)
+        Icon(
+            imageVector = Icons.Outlined.CloudOff,
+            contentDescription = null,
+            tint = Color(0xFF9E9EA7),
+            modifier = Modifier.size(52.dp)
+        )
+        Spacer(modifier = Modifier.height(14.dp))
+        Text(text = "搜索遇到问题", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = PrimaryText)
         Spacer(modifier = Modifier.height(8.dp))
-        Text(text = errorMessage, fontSize = 13.sp, color = SecondaryText)
-        Spacer(modifier = Modifier.height(16.dp))
+        Text(
+            text = errorMessage,
+            fontSize = 13.sp,
+            color = SecondaryText,
+            textAlign = TextAlign.Center,
+            lineHeight = 18.sp
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = "提示：请检查设备网络状态后重试",
+            fontSize = 12.sp,
+            color = Color(0xFFAAAAAF)
+        )
+        Spacer(modifier = Modifier.height(18.dp))
         Button(onClick = onRetryClick) {
-            Text("重试")
+            Icon(imageVector = Icons.Filled.Refresh, contentDescription = null)
+            Spacer(modifier = Modifier.width(6.dp))
+            Text("重新搜索")
         }
     }
 }

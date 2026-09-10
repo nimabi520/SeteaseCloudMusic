@@ -2,6 +2,7 @@ package com.example.seteasecloudmusic.feature.mine.presentation
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.seteasecloudmusic.core.common.toUserFriendlyMessage
 import com.example.seteasecloudmusic.core.model.Track
 import com.example.seteasecloudmusic.core.player.MusicPlayerController
 import com.example.seteasecloudmusic.core.local.LocalMusicRepository
@@ -225,7 +226,7 @@ class MineViewModel @Inject constructor(
                 throw e
             } catch (e: Exception) {
                 if (requestId == localScanRequestId) {
-                    _uiState.update { it.copy(errorMessage = e.message ?: "扫描本地音乐失败") }
+                    _uiState.update { it.copy(errorMessage = e.toUserFriendlyMessage("扫描本地音乐")) }
                 }
             } finally {
                 if (requestId == localScanRequestId && currentCoroutineContext().isActive) {
@@ -278,7 +279,7 @@ class MineViewModel @Inject constructor(
                     current.copy(
                         isLoading = false,
                         errorMessage = if (current.createdPlaylists.isEmpty() && current.likedPlaylist == null) {
-                            err.message ?: "加载歌单失败"
+                            err.toUserFriendlyMessage("加载歌单")
                         } else null
                     )
                 }
@@ -388,7 +389,7 @@ class MineViewModel @Inject constructor(
                             current.copy(
                                 isLoadingDetail = false,
                                 errorMessage = if (current.activePlaylistDetail?.tracks.isNullOrEmpty()) {
-                                    err.message ?: "加载歌单曲目失败"
+                                    err.toUserFriendlyMessage("加载歌单曲目")
                                 } else null
                             )
                         } else {

@@ -2,6 +2,7 @@ package com.example.seteasecloudmusic.feature.search.presentation
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.seteasecloudmusic.core.common.toUserFriendlyMessage
 import com.example.seteasecloudmusic.core.player.MusicPlayerController
 import com.example.seteasecloudmusic.core.player.PlayerStatus
 import com.example.seteasecloudmusic.feature.search.domain.SearchSuggestions
@@ -230,7 +231,7 @@ class SearchViewModel @Inject constructor(
                             state.copy(
                                 isLoading = false,
                                 tracks = emptyList(),
-                                errorMessage = throwable.message ?: "搜索失败，请稍后重试"
+                                errorMessage = throwable.toUserFriendlyMessage("搜索")
                             )
                         }
                     }
@@ -350,7 +351,7 @@ class SearchViewModel @Inject constructor(
                         _uiState.update { state ->
                             state.copy(
                                 isLoading = false,
-                                errorMessage = throwable.message ?: "搜索失败，请稍后重试"
+                                errorMessage = throwable.toUserFriendlyMessage("搜索")
                             )
                         }
                     }
@@ -408,7 +409,7 @@ class SearchViewModel @Inject constructor(
                             state.copy(
                                 suggestions = SearchSuggestions(),
                                 isSuggestionLoading = false,
-                                suggestionErrorMessage = throwable.message ?: "搜索建议加载失败，请稍后重试"
+                                suggestionErrorMessage = throwable.toUserFriendlyMessage("搜索建议加载")
                             )
                         }
                     }

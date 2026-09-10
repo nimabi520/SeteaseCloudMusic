@@ -627,18 +627,40 @@ private fun DiscoverErrorPanel(
             .background(Color.White)
             .padding(20.dp),
         horizontalAlignment = Alignment.Start,
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Filled.WarningAmber,
+                contentDescription = null,
+                tint = Color(0xFFE53935),
+                modifier = Modifier.size(20.dp)
+            )
+            Text(
+                text = "内容加载受阻",
+                color = DiscoverPrimary,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
         Text(
             text = message,
-            color = DiscoverPrimary,
-            fontSize = 15.sp,
-            fontWeight = FontWeight.SemiBold
+            color = DiscoverSecondary,
+            fontSize = 13.sp,
+            lineHeight = 18.sp
+        )
+        Text(
+            text = "提示：请检查设备网络连接后重试",
+            color = Color(0xFF8E8E93),
+            fontSize = 12.sp
         )
         Button(onClick = onRetry) {
             Icon(imageVector = Icons.Filled.Refresh, contentDescription = null)
             Spacer(modifier = Modifier.width(6.dp))
-            Text(text = "重试")
+            Text(text = "重新加载")
         }
     }
 }

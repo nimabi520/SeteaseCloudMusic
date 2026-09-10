@@ -2,6 +2,7 @@ package com.example.seteasecloudmusic.feature.discover.presentation
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.seteasecloudmusic.core.common.toUserFriendlyMessage
 import com.example.seteasecloudmusic.core.model.Track
 import com.example.seteasecloudmusic.feature.discover.domain.model.DiscoverPlaylist
 import com.example.seteasecloudmusic.feature.discover.domain.model.DiscoverToplist
@@ -76,7 +77,7 @@ class DiscoverViewModel @Inject constructor(
                     _uiState.update {
                         it.copy(
                             isPersonalizedLoading = false,
-                            personalizedErrorMessage = throwable.message ?: "获取推荐歌单失败"
+                            personalizedErrorMessage = throwable.toUserFriendlyMessage("获取推荐歌单")
                         )
                     }
                 }
@@ -101,7 +102,7 @@ class DiscoverViewModel @Inject constructor(
                     _uiState.update {
                         it.copy(
                             isHotPlaylistsLoading = false,
-                            hotPlaylistsErrorMessage = throwable.message ?: "获取热门歌单失败"
+                            hotPlaylistsErrorMessage = throwable.toUserFriendlyMessage("获取热门歌单")
                         )
                     }
                 }
@@ -126,7 +127,7 @@ class DiscoverViewModel @Inject constructor(
                     _uiState.update {
                         it.copy(
                             isNewsongsLoading = false,
-                            newsongsErrorMessage = throwable.message ?: "获取新歌失败"
+                            newsongsErrorMessage = throwable.toUserFriendlyMessage("获取新歌")
                         )
                     }
                 }
@@ -151,7 +152,7 @@ class DiscoverViewModel @Inject constructor(
                     _uiState.update {
                         it.copy(
                             isToplistsLoading = false,
-                            toplistsErrorMessage = throwable.message ?: "获取榜单失败"
+                            toplistsErrorMessage = throwable.toUserFriendlyMessage("获取榜单")
                         )
                     }
                 }

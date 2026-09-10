@@ -10,6 +10,7 @@ import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.example.seteasecloudmusic.core.common.runCatchingCancellable
+import com.example.seteasecloudmusic.core.common.toUserFriendlyMessage
 import com.example.seteasecloudmusic.core.cache.PlaybackCacheManager
 import com.example.seteasecloudmusic.core.cache.SavedPlaybackState
 import com.example.seteasecloudmusic.core.model.Track
@@ -259,7 +260,7 @@ class MusicPlayerController @Inject constructor(
         override fun onPlayerError(error: PlaybackException) {
             stopProgressTicker()
             _playbackState.update {
-                it.copy(status = PlayerStatus.ERROR, errorMessage = error.message ?: "Playback error")
+                it.copy(status = PlayerStatus.ERROR, errorMessage = error.toUserFriendlyMessage("播放"))
             }
         }
     }
@@ -307,7 +308,7 @@ class MusicPlayerController @Inject constructor(
                     _playbackState.update {
                         it.copy(
                             status = PlayerStatus.ERROR,
-                            errorMessage = failure?.message ?: "播放器服务连接失败"
+                            errorMessage = failure.toUserFriendlyMessage("连接播放器服务")
                         )
                     }
                     scheduleReconnectIfNeeded()
@@ -426,7 +427,7 @@ class MusicPlayerController @Inject constructor(
         val snapshot = tracks.toList()
         if (snapshot.isEmpty()) {
             _playbackState.update {
-                it.copy(status = PlayerStatus.ERROR, errorMessage = "Queue is empty")
+                it.copy(status = PlayerStatus.ERROR, errorMessage = "播放列表为空")
             }
             return
         }
@@ -434,7 +435,7 @@ class MusicPlayerController @Inject constructor(
             _playbackState.update {
                 it.copy(
                     status = PlayerStatus.ERROR,
-                    errorMessage = "Queue index out of bounds"
+                    errorMessage = "播放序号无效"
                 )
             }
             return
@@ -606,7 +607,7 @@ class MusicPlayerController @Inject constructor(
                 },
                 onFailure = { err ->
                     _playbackState.update {
-                        it.copy(status = PlayerStatus.ERROR, errorMessage = err.message ?: "切换音质失败")
+                        it.copy(status = PlayerStatus.ERROR, errorMessage = err.toUserFriendlyMessage("切换音质"))
                     }
                 }
             )
@@ -667,7 +668,7 @@ class MusicPlayerController @Inject constructor(
         val queue = _playbackState.value.queueTracks
         if (index !in queue.indices) {
             _playbackState.update {
-                it.copy(status = PlayerStatus.ERROR, errorMessage = "Queue index out of bounds")
+                it.copy(status = PlayerStatus.ERROR, errorMessage = "播放序号无效")
             }
             return
         }
@@ -740,7 +741,7 @@ class MusicPlayerController @Inject constructor(
                     val url = t.playableUrl
                     if (url.isNullOrBlank() || !t.isPlayable) {
                         _playbackState.update {
-                            it.copy(status = PlayerStatus.ERROR, errorMessage = "Track is not playable")
+                            it.copy(status = PlayerStatus.ERROR, errorMessage = "该歌曲暂无法播放")
                         }
                         return@onSuccess
                     }
@@ -783,7 +784,7 @@ class MusicPlayerController @Inject constructor(
                         return@onFailure
                     }
                     _playbackState.update {
-                        it.copy(status = PlayerStatus.ERROR, errorMessage = e.message ?: "Unknown error")
+                        it.copy(status = PlayerStatus.ERROR, errorMessage = e.toUserFriendlyMessage("播放歌曲"))
                     }
                 }
         }

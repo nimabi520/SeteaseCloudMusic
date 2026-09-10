@@ -35,6 +35,8 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -198,12 +200,39 @@ private fun HomeScreenContent(
 
                 if (!uiState.errorMessage.isNullOrBlank()) {
                     item(key = "home_error_message") {
-                        Text(
-                            text = uiState.errorMessage,
-                            color = Color(0xFFB52438),
-                            fontSize = 12.sp,
-                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)
-                        )
+                        Card(
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF2F0)),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 20.dp, vertical = 8.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.WarningAmber,
+                                    contentDescription = null,
+                                    tint = Color(0xFFE53935),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Column {
+                                    Text(
+                                        text = uiState.errorMessage,
+                                        color = Color(0xFFD32F2F),
+                                        fontSize = 13.sp,
+                                        lineHeight = 18.sp
+                                    )
+                                    Text(
+                                        text = "提示：可轻触页面上方刷新按钮重新获取",
+                                        color = Color(0xFF8E8E93),
+                                        fontSize = 11.sp
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
 
